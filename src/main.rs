@@ -209,6 +209,8 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
 
     disable_raw_mode()?;
     terminal.show_cursor()?;
+
+    execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
     Ok(())
 }
 
