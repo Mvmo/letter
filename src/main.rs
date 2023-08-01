@@ -9,6 +9,7 @@ use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent, 
 use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
 
+use tui::style::Color;
 use tui::{Terminal, Frame};
 use tui::backend::{CrosstermBackend, Backend};
 use tui::widgets::{Block, Borders, ListState, List, ListItem};
@@ -198,13 +199,15 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
 
     let rx = spawn_key_listener()?;
 
+    let app_state = AppState { task_store: store, mode: AppMode::NORMAL };
+
     loop {
-        let update_result = update(store, &rx)?;
+        let update_result = update(&app_state, &rx)?;
         match update_result {
             UpdateResult::Quit => break,
             _ => {}
         }
-        terminal.draw(|f| draw_ui(f, store))?;
+        terminal.draw(|f| draw_ui(f, &app_state))?;
     }
 
     disable_raw_mode()?;
@@ -219,14 +222,24 @@ enum UpdateResult {
     None
 }
 
+#[derive(Clone, Copy)]
 enum AppMode {
     NORMAL
+}
+
+impl Into<String> for AppMode {
+    fn into(self) -> String {
+        match self {
+            Self::NORMAL => String::from("NORMAL")
+        }
+    }
 }
 
 struct AppState<'a> {
     task_store: &'a TaskStore,
     mode: AppMode
 }
+
 
 fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>> {
     let (tx, rx) = mpsc::channel();
@@ -243,7 +256,7 @@ fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>
     Ok(rx)
 }
 
-fn update(store: &TaskStore, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
+fn update(state: &AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
     if let Ok(key_event) = rx.try_recv() {
         match key_event.code {
             KeyCode::Char('q') => {
@@ -259,7 +272,20 @@ fn update_normal_mode() {
 
 }
 
-fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, store: &TaskStore) {
+fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
     let my_list = List::new(vec![ListItem::new("hallo"), ListItem::new("hello")]);
     frame.render_widget(my_list, frame.size());
+    draw_status_bar(frame, state)
+}
+
+fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
+    let state_str: String = state.mode.into();
+    let my_box = Block::default()
+        .title(state_str)
+        .title_style(tui::style::Style::default().bg(Color::LightGreen).fg(Color::Black));
+
+    let mut rect = frame.size().clone();
+    rect.height = 1;
+    rect.y = frame.size().bottom() - rect.height;
+    frame.render_widget(my_box, rect);
 }
