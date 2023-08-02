@@ -11,8 +11,8 @@ use crossterm::execute;
 
 use tui::style::Color;
 use tui::{Terminal, Frame};
-use tui::backend::{CrosstermBackend, Backend};
-use tui::widgets::{Block, Borders, ListState, List, ListItem};
+use tui::backend::CrosstermBackend;
+use tui::widgets::{Block, ListState, List, ListItem};
 
 static DEFAULT_LOCATION: &str = "tasks";
 
@@ -199,15 +199,15 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
 
     let rx = spawn_key_listener()?;
 
-    let app_state = AppState { task_store: store, mode: AppMode::NORMAL };
+    let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL, list_state: &mut ListState::default() };
 
     loop {
-        let update_result = update(&app_state, &rx)?;
+        let update_result = update(&mut app_state, &rx)?;
         match update_result {
             UpdateResult::Quit => break,
             _ => {}
         }
-        terminal.draw(|f| draw_ui(f, &app_state))?;
+        terminal.draw(|f| draw_ui(f, &mut app_state))?;
     }
 
     disable_raw_mode()?;
@@ -219,6 +219,7 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
 
 enum UpdateResult {
     Quit,
+    UpdateMode(AppMode),
     None
 }
 
@@ -237,7 +238,8 @@ impl Into<String> for AppMode {
 
 struct AppState<'a> {
     task_store: &'a TaskStore,
-    mode: AppMode
+    mode: AppMode,
+    list_state: &'a mut ListState
 }
 
 
@@ -256,26 +258,61 @@ fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>
     Ok(rx)
 }
 
-fn update(state: &AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
+fn update(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
+    match state.mode {
+        AppMode::NORMAL => update_normal_mode(state, rx),
+    }
+}
+
+fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
     if let Ok(key_event) = rx.try_recv() {
         match key_event.code {
             KeyCode::Char('q') => {
                 return Ok(UpdateResult::Quit);
             },
+            KeyCode::Down => {
+                let new_index = match state.list_state.selected() {
+                    Some(index) => {
+                        if index >= state.task_store.tasks.len() {
+                            0
+                        } else {
+                            index + 1
+                        }
+                    },
+                    None => 0
+                };
+
+
+                state.list_state.select(Some(new_index));
+                return Ok(UpdateResult::None);
+            }
             _ => {}
         }
     }
     Ok(UpdateResult::None)
 }
 
-fn update_normal_mode() {
-
-}
-
-fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
+fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
     let my_list = List::new(vec![ListItem::new("hallo"), ListItem::new("hello")]);
     frame.render_widget(my_list, frame.size());
+    draw_task_list(frame, state);
     draw_status_bar(frame, state)
+}
+
+fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
+    let items: Vec<ListItem> = state.task_store.tasks.iter()
+        .map(|task| {
+            let task_str: String = (*task).clone().into();
+            ListItem::new(task_str)
+        }).collect();
+
+    let my_list = List::new(items).highlight_symbol("***");
+
+    let mut rect = frame.size().clone();
+    rect.height = rect.height - 2;
+    rect.y = 0;
+
+    frame.render_stateful_widget(my_list, rect, state.list_state);
 }
 
 fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
