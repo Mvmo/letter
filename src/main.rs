@@ -10,6 +10,7 @@ use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mod
 use crossterm::execute;
 
 use tui::style::Color;
+use tui::text::Span;
 use tui::{Terminal, Frame};
 use tui::backend::CrosstermBackend;
 use tui::widgets::{Block, ListState, List, ListItem};
@@ -19,8 +20,6 @@ static DEFAULT_LOCATION: &str = "tasks";
 struct TaskStore {
     path: PathBuf,
     tasks: Vec<Task>,
-
-    list_state: ListState
 }
 
 #[derive(Clone, Copy)]
@@ -108,11 +107,11 @@ impl TaskStore {
                     .filter_map(|line| Task::from_line(line))
                     .collect();
 
-                TaskStore { tasks, path, list_state: ListState::default() }
+                TaskStore { tasks, path }
             },
             Err(err) => {
                 eprintln!("Error opening file: {}", err);
-                TaskStore { tasks: vec![], path, list_state: ListState::default() }
+                TaskStore { tasks: vec![], path }
             }
         }
     }
@@ -135,46 +134,11 @@ impl TaskStore {
         }
     }
 
-    pub fn next(&mut self) {
-        println!("next");
-        let i = match self.list_state.selected() {
-            Some(i) => {
-                if i >= self.tasks.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
-            },
-            None => 0
-        };
-        println!("next has {}", i);
-
-        self.list_state.select(Some(i));
-    }
-
-    pub fn previous(&mut self) {
-        let i = match self.list_state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.tasks.len() - 1
-                } else {
-                    i - 1
-                }
-            },
-            None => 0
-        };
-
-        self.list_state.select(Some(i));
-    }
-
-    pub fn unselect(&mut self) {
-        self.list_state.select(None)
-    }
 }
 
 impl<'a> From<PathBuf> for TaskStore {
     fn from(path: PathBuf) -> Self {
-        TaskStore { path, tasks: vec![], list_state: ListState::default() }
+        TaskStore { path, tasks: vec![] }
     }
 }
 
@@ -205,7 +169,8 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
         let update_result = update(&mut app_state, &rx)?;
         match update_result {
             UpdateResult::Quit => break,
-            _ => {}
+            UpdateResult::UpdateMode(mode) => app_state.mode = mode,
+            UpdateResult::None => {}
         }
         terminal.draw(|f| draw_ui(f, &mut app_state))?;
     }
@@ -223,15 +188,17 @@ enum UpdateResult {
     None
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum AppMode {
-    NORMAL
+    NORMAL,
+    INPUT(String)
 }
 
 impl Into<String> for AppMode {
     fn into(self) -> String {
         match self {
-            Self::NORMAL => String::from("NORMAL")
+            Self::NORMAL => String::from("NORMAL"),
+            Self::INPUT(_) => String::from("INPUT")
         }
     }
 }
@@ -261,12 +228,16 @@ fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>
 fn update(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
     match state.mode {
         AppMode::NORMAL => update_normal_mode(state, rx),
+        AppMode::INPUT(_) => update_input_mode(state, rx),
     }
 }
 
 fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
     if let Ok(key_event) = rx.try_recv() {
         match key_event.code {
+            KeyCode::Char('i') => {
+                return Ok(UpdateResult::UpdateMode(AppMode::INPUT(String::from(""))))
+            }
             KeyCode::Char('q') => {
                 return Ok(UpdateResult::Quit);
             },
@@ -282,13 +253,33 @@ fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<U
                     None => 0
                 };
 
-
                 state.list_state.select(Some(new_index));
                 return Ok(UpdateResult::None);
             }
             _ => {}
         }
     }
+    Ok(UpdateResult::None)
+}
+
+fn update_input_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
+    let current_input = match state.mode.clone() {
+        AppMode::INPUT(str) => str,
+        _ => return Err(format!("update input mode got called with normal mode!!").into())
+    };
+
+    if let Ok(key_event) = rx.try_recv() {
+        match key_event.code {
+            KeyCode::Esc => {
+                return Ok(UpdateResult::UpdateMode(AppMode::NORMAL))
+            }
+            KeyCode::Char(c) => {
+                return Ok(UpdateResult::UpdateMode(AppMode::INPUT(current_input + c.to_string().as_str())))
+            }
+            _ => return Ok(UpdateResult::None)
+        }
+    };
+
     Ok(UpdateResult::None)
 }
 
@@ -316,10 +307,14 @@ fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppSt
 }
 
 fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
-    let state_str: String = state.mode.into();
-    let my_box = Block::default()
+    let state_str: String = state.mode.clone().into();
+    let mut my_box = Block::default()
         .title(state_str)
         .title_style(tui::style::Style::default().bg(Color::LightGreen).fg(Color::Black));
+
+    if let AppMode::INPUT(input_mode) = state.mode.clone() {
+        my_box = my_box.title(format!("Input > {}", input_mode));
+    }
 
     let mut rect = frame.size().clone();
     rect.height = 1;
