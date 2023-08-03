@@ -1,4 +1,6 @@
 use core::fmt;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::Duration;
@@ -10,7 +12,6 @@ use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mod
 use crossterm::execute;
 
 use tui::style::Color;
-use tui::text::Span;
 use tui::{Terminal, Frame};
 use tui::backend::CrosstermBackend;
 use tui::widgets::{Block, ListState, List, ListItem};
@@ -19,7 +20,7 @@ static DEFAULT_LOCATION: &str = "tasks";
 
 struct TaskStore {
     path: PathBuf,
-    tasks: Vec<Task>,
+    tasks: Vec<Rc<RefCell<Task>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -28,6 +29,23 @@ enum TaskState {
     Working,
     Waiting,
     Unkown
+}
+
+#[derive(Clone)]
+struct Task {
+    state: TaskState,
+    text: String,
+}
+
+impl TaskState {
+    fn next(&self) -> Self {
+        match self {
+            Self::Done => Self::Working,
+            Self::Working => Self::Waiting,
+            Self::Waiting => Self::Done,
+            Self::Unkown => Self::Done,
+        }
+    }
 }
 
 impl fmt::Display for TaskState {
@@ -69,11 +87,7 @@ impl From<&str> for TaskState {
     }
 }
 
-#[derive(Clone)]
-struct Task {
-    state: TaskState,
-    text: String,
-}
+
 
 impl Into<String> for Task {
     fn into(self) -> String {
@@ -102,9 +116,10 @@ impl TaskStore {
                 let mut str = String::new();
                 reader.read_to_string(&mut str).expect("BITTE");
 
-                let tasks: Vec<Task> = str.to_owned().split("\n")
+                let tasks: Vec<Rc<RefCell<Task>>> = str.to_owned().split("\n")
                     .into_iter()
                     .filter_map(|line| Task::from_line(line))
+                    .map(|t| Rc::new(RefCell::new(t)))
                     .collect();
 
                 TaskStore { tasks, path }
@@ -117,7 +132,7 @@ impl TaskStore {
     }
 
     fn add_task(&mut self, task: Task) {
-        self.tasks.push(task)
+        self.tasks.push(Rc::new(RefCell::new(task)))
     }
 
     fn save(&self) {
@@ -126,7 +141,7 @@ impl TaskStore {
             let mut writer = BufWriter::new(file);
             self.tasks.iter()
                 .for_each(|task| {
-                    let task_str: String = (*task).clone().into();
+                    let task_str: String = (*task.borrow()).clone().into();
                     writer.write(format!("{}\n", task_str).as_bytes()).expect("couldn't write task to file :(");
                 });
 
@@ -136,7 +151,7 @@ impl TaskStore {
 
 }
 
-impl<'a> From<PathBuf> for TaskStore {
+impl From<PathBuf> for TaskStore {
     fn from(path: PathBuf) -> Self {
         TaskStore { path, tasks: vec![] }
     }
@@ -164,6 +179,7 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     let rx = spawn_key_listener()?;
 
     let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL, list_state: &mut ListState::default() };
+    app_state.list_state.select(Some(0));
 
     loop {
         let update_result = update(&mut app_state, &rx)?;
@@ -241,10 +257,10 @@ fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<U
             KeyCode::Char('q') => {
                 return Ok(UpdateResult::Quit);
             },
-            KeyCode::Down => {
+            KeyCode::Char('j') => {
                 let new_index = match state.list_state.selected() {
                     Some(index) => {
-                        if index >= state.task_store.tasks.len() {
+                        if index >= state.task_store.tasks.len() - 1 {
                             0
                         } else {
                             index + 1
@@ -255,7 +271,26 @@ fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<U
 
                 state.list_state.select(Some(new_index));
                 return Ok(UpdateResult::None);
-            }
+            },
+            KeyCode::Char('k') => {
+                let new_index = match state.list_state.selected() {
+                    Some(index) => {
+                        if index == 0 {
+                            state.task_store.tasks.len() - 1
+                        } else {
+                            index - 1
+                        }
+                    },
+                    None => 0
+                };
+
+                state.list_state.select(Some(new_index));
+                return Ok(UpdateResult::None);
+            },
+            KeyCode::Char(' ') => {
+                let mut task = state.task_store.tasks[state.list_state.selected().unwrap()].borrow_mut();
+                task.state = task.state.next();
+            },
             _ => {}
         }
     }
@@ -293,11 +328,11 @@ fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
 fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
     let items: Vec<ListItem> = state.task_store.tasks.iter()
         .map(|task| {
-            let task_str: String = (*task).clone().into();
+            let task_str: String = (*task.borrow()).clone().into();
             ListItem::new(task_str)
         }).collect();
 
-    let my_list = List::new(items).highlight_symbol("***");
+    let my_list = List::new(items).highlight_symbol("> ");
 
     let mut rect = frame.size().clone();
     rect.height = rect.height - 2;
