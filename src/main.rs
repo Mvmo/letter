@@ -25,9 +25,9 @@ struct TaskStore {
 
 #[derive(Clone, Copy)]
 enum TaskState {
+    Todo,
+    InProgress,
     Done,
-    Working,
-    Waiting,
     Unkown
 }
 
@@ -40,10 +40,10 @@ struct Task {
 impl TaskState {
     fn next(&self) -> Self {
         match self {
-            Self::Done => Self::Working,
-            Self::Working => Self::Waiting,
-            Self::Waiting => Self::Done,
-            Self::Unkown => Self::Done,
+            Self::Todo => Self::InProgress,
+            Self::InProgress => Self::Done,
+            Self::Done => Self::Todo,
+            Self::Unkown => Self::Todo,
         }
     }
 }
@@ -51,10 +51,10 @@ impl TaskState {
 impl fmt::Display for TaskState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", match self {
-            Self::Done => "Done",
-            Self::Working => "Working",
-            Self::Waiting => "Waiting",
-            Self::Unkown => "?"
+            Self::Todo => "◻️",
+            Self::InProgress => "🟨",
+            Self::Done => "✅",
+            Self::Unkown => "🚫"
         })
     }
 }
@@ -68,9 +68,9 @@ impl<'a> fmt::Display for Task {
 impl Into<String> for TaskState {
     fn into(self) -> String {
         match self {
+            TaskState::Todo => String::from("T"),
+            TaskState::InProgress => String::from("P"),
             TaskState::Done => String::from("D"),
-            TaskState::Working => String::from("W"),
-            TaskState::Waiting => String::from("X"),
             TaskState::Unkown => String::from("?")
         }
     }
@@ -79,9 +79,9 @@ impl Into<String> for TaskState {
 impl From<&str> for TaskState {
     fn from(value: &str) -> Self {
         match value {
+            "T" => TaskState::Todo,
+            "P" => TaskState::InProgress,
             "D" => TaskState::Done,
-            "W" => TaskState::Working,
-            "X" => TaskState::Waiting,
             _ => TaskState::Unkown
         }
     }
@@ -159,7 +159,7 @@ impl From<PathBuf> for TaskStore {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut task_store = TaskStore::new(PathBuf::from(DEFAULT_LOCATION));
-    task_store.add_task(Task { state: TaskState::Waiting, text: String::from("hallo, welt") });
+    task_store.add_task(Task { state: TaskState::Todo, text: String::from("hallo, welt") });
     task_store.save();
 
     start_ui(&mut task_store)?;
@@ -327,8 +327,7 @@ fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
 fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
     let items: Vec<ListItem> = state.task_store.tasks.iter()
         .map(|task| {
-            let task_str: String = (*task.borrow()).clone().into();
-            ListItem::new(task_str)
+            ListItem::new(format!("{}", *task.borrow()))
         }).collect();
 
     let my_list = List::new(items).highlight_symbol("> ");
