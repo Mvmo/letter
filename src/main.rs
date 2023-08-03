@@ -19,10 +19,10 @@ static DEFAULT_LOCATION: &str = "tasks";
 
 struct TaskStore {
     path: PathBuf,
-    tasks: Vec<Arc<Mutex<Task>>>,
+    tasks: Arc<Mutex<Vec<Arc<Mutex<Task>>>>>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum TaskState {
     Todo,
     InProgress,
@@ -107,7 +107,7 @@ impl Task {
     }
 }
 
-impl TaskStore {
+impl<'a> TaskStore {
     fn new(path: PathBuf) -> Self {
         match File::open(path.clone()) {
             Ok(file) => {
@@ -115,30 +115,30 @@ impl TaskStore {
                 let mut str = String::new();
                 reader.read_to_string(&mut str).expect("BITTE");
 
-                let tasks: Vec<Arc<Mutex<Task>>> = str.to_owned().split("\n")
+                let tasks: Arc<Mutex<Vec<Arc<Mutex<Task>>>>> = Arc::new(Mutex::new(str.to_owned().split("\n")
                     .into_iter()
                     .filter_map(|line| Task::from_line(line))
                     .map(|t| Arc::new(Mutex::new(t)))
-                    .collect();
+                    .collect()));
 
                 TaskStore { tasks, path }
             },
             Err(err) => {
                 eprintln!("Error opening file: {}", err);
-                TaskStore { tasks: vec![], path }
+                TaskStore { tasks: Arc::new(Mutex::new(vec![])), path }
             }
         }
     }
 
     fn add_task(&mut self, task: Task) {
-        self.tasks.push(Arc::new(Mutex::new(task)))
+        self.tasks.lock().unwrap().push(Arc::new(Mutex::new(task)))
     }
 
     fn save(&self) {
         let file = File::create(self.path.clone());
         if let Ok(file) = file {
             let mut writer = BufWriter::new(file);
-            self.tasks.clone().iter()
+            self.tasks.lock().unwrap().iter()
                 .for_each(|task| {
                     let task = task.clone();
                     let task_str: String = task.lock().unwrap().clone().into();
@@ -151,9 +151,9 @@ impl TaskStore {
 
 }
 
-impl From<PathBuf> for TaskStore {
+impl<'a> From<PathBuf> for TaskStore {
     fn from(path: PathBuf) -> Self {
-        TaskStore { path, tasks: vec![] }
+        TaskStore { path, tasks: Arc::new(Mutex::new(vec![])) }
     }
 }
 
@@ -178,7 +178,7 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
 
     let rx = spawn_key_listener()?;
 
-    let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL, list_state: &mut ListState::default() };
+    let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL, list_state: &mut ListState::default()};
     app_state.list_state.select(Some(0));
 
     loop {
@@ -224,7 +224,7 @@ impl Into<String> for AppMode {
 struct AppState<'a> {
     task_store: &'a TaskStore,
     mode: AppMode,
-    list_state: &'a mut ListState
+    list_state: &'a mut ListState,
 }
 
 fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>> {
@@ -258,10 +258,14 @@ fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<U
             KeyCode::Char('q') => {
                 return Ok(UpdateResult::Quit);
             },
+            KeyCode::Char('s') => {
+                state.task_store.tasks.lock().unwrap().sort_by_key(|task| (*task.lock().unwrap()).state);
+                return Ok(UpdateResult::None);
+            },
             KeyCode::Char('j') => {
                 let new_index = match state.list_state.selected() {
                     Some(index) => {
-                        if index >= state.task_store.tasks.len() - 1 {
+                        if index >= state.task_store.tasks.lock().unwrap().len() - 1 {
                             0
                         } else {
                             index + 1
@@ -277,7 +281,7 @@ fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<U
                 let new_index = match state.list_state.selected() {
                     Some(index) => {
                         if index == 0 {
-                            state.task_store.tasks.len() - 1
+                            state.task_store.tasks.lock().unwrap().len() - 1
                         } else {
                             index - 1
                         }
@@ -289,7 +293,8 @@ fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<U
                 return Ok(UpdateResult::None);
             },
             KeyCode::Char(' ') => {
-                let mut task = state.task_store.tasks[state.list_state.selected().unwrap()].lock().unwrap();
+                let tasks = state.task_store.tasks.lock().unwrap();
+                let mut task = tasks[state.list_state.selected().unwrap()].lock().unwrap();
                 task.state = task.state.next();
                 return Ok(UpdateResult::Save)
             },
@@ -328,7 +333,7 @@ fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
 }
 
 fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
-    let items: Vec<ListItem> = state.task_store.tasks.iter()
+    let items: Vec<ListItem> = state.task_store.tasks.lock().unwrap().iter()
         .map(|task| {
             ListItem::new(format!("{}", *task.lock().unwrap()))
         }).collect();
