@@ -11,8 +11,8 @@ use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent, 
 use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
 
-use tui::style::Color;
-use tui::{Terminal, Frame};
+use tui::style::{Color, Style};
+use tui::{Terminal, Frame, text};
 use tui::backend::CrosstermBackend;
 use tui::widgets::{Block, ListState, List, ListItem};
 
@@ -225,7 +225,6 @@ struct AppState<'a> {
     list_state: &'a mut ListState
 }
 
-
 fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
@@ -344,8 +343,7 @@ fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppSt
 fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
     let state_str: String = state.mode.clone().into();
     let mut my_box = Block::default()
-        .title(state_str)
-        .title_style(tui::style::Style::default().bg(Color::LightGreen).fg(Color::Black));
+        .title(text::Span::styled(state_str, Style::default().fg(Color::Black).bg(Color::LightGreen)));
 
     if let AppMode::INPUT(input_mode) = state.mode.clone() {
         my_box = my_box.title(format!("Input > {}", input_mode));
