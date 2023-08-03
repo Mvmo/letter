@@ -1,6 +1,5 @@
 use core::fmt;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::Duration;
@@ -20,7 +19,7 @@ static DEFAULT_LOCATION: &str = "tasks";
 
 struct TaskStore {
     path: PathBuf,
-    tasks: Vec<Rc<RefCell<Task>>>,
+    tasks: Vec<Arc<Mutex<Task>>>,
 }
 
 #[derive(Clone, Copy)]
@@ -61,7 +60,7 @@ impl fmt::Display for TaskState {
 
 impl<'a> fmt::Display for Task {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} -> {}", self.state, self.text)
+        write!(f, "{} {}", self.state, self.text)
     }
 }
 
@@ -116,10 +115,10 @@ impl TaskStore {
                 let mut str = String::new();
                 reader.read_to_string(&mut str).expect("BITTE");
 
-                let tasks: Vec<Rc<RefCell<Task>>> = str.to_owned().split("\n")
+                let tasks: Vec<Arc<Mutex<Task>>> = str.to_owned().split("\n")
                     .into_iter()
                     .filter_map(|line| Task::from_line(line))
-                    .map(|t| Rc::new(RefCell::new(t)))
+                    .map(|t| Arc::new(Mutex::new(t)))
                     .collect();
 
                 TaskStore { tasks, path }
@@ -132,16 +131,17 @@ impl TaskStore {
     }
 
     fn add_task(&mut self, task: Task) {
-        self.tasks.push(Rc::new(RefCell::new(task)))
+        self.tasks.push(Arc::new(Mutex::new(task)))
     }
 
     fn save(&self) {
         let file = File::create(self.path.clone());
         if let Ok(file) = file {
             let mut writer = BufWriter::new(file);
-            self.tasks.iter()
+            self.tasks.clone().iter()
                 .for_each(|task| {
-                    let task_str: String = (*task.borrow()).clone().into();
+                    let task = task.clone();
+                    let task_str: String = task.lock().unwrap().clone().into();
                     writer.write(format!("{}\n", task_str).as_bytes()).expect("couldn't write task to file :(");
                 });
 
@@ -186,6 +186,7 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
         match update_result {
             UpdateResult::Quit => break,
             UpdateResult::UpdateMode(mode) => app_state.mode = mode,
+            UpdateResult::Save => app_state.task_store.save(),
             UpdateResult::None => {}
         }
         terminal.draw(|f| draw_ui(f, &mut app_state))?;
@@ -201,6 +202,7 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
 enum UpdateResult {
     Quit,
     UpdateMode(AppMode),
+    Save,
     None
 }
 
@@ -287,8 +289,9 @@ fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<U
                 return Ok(UpdateResult::None);
             },
             KeyCode::Char(' ') => {
-                let mut task = state.task_store.tasks[state.list_state.selected().unwrap()].borrow_mut();
+                let mut task = state.task_store.tasks[state.list_state.selected().unwrap()].lock().unwrap();
                 task.state = task.state.next();
+                return Ok(UpdateResult::Save)
             },
             _ => {}
         }
@@ -327,10 +330,10 @@ fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
 fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
     let items: Vec<ListItem> = state.task_store.tasks.iter()
         .map(|task| {
-            ListItem::new(format!("{}", *task.borrow()))
+            ListItem::new(format!("{}", *task.lock().unwrap()))
         }).collect();
 
-    let my_list = List::new(items).highlight_symbol("> ");
+    let my_list = List::new(items).highlight_symbol("-> ");
 
     let mut rect = frame.size().clone();
     rect.height = rect.height - 2;
