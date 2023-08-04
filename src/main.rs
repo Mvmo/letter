@@ -209,14 +209,16 @@ enum UpdateResult {
 #[derive(Clone)]
 enum AppMode {
     NORMAL,
-    INPUT(String)
+    INPUT(String),
+    EDIT(Arc<Mutex<Task>>, String)
 }
 
 impl Into<String> for AppMode {
     fn into(self) -> String {
         match self {
             Self::NORMAL => String::from("NORMAL"),
-            Self::INPUT(_) => String::from("INPUT")
+            Self::INPUT(_) => String::from("INPUT"),
+            Self::EDIT(_, _) => String::from("EDIT")
         }
     }
 }
@@ -246,7 +248,36 @@ fn update(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult,
     match state.mode {
         AppMode::NORMAL => update_normal_mode(state, rx),
         AppMode::INPUT(_) => update_input_mode(state, rx),
+        AppMode::EDIT(_, _) => update_edit_mode(state, rx),
     }
+}
+
+fn update_edit_mode(state: &mut AppState<'_>, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
+    let edit_mode_task_and_string = match state.mode.clone() {
+        AppMode::EDIT(task, str) => (task, str),
+        _ => return Err(format!("update input mode got called with normal mode!!").into())
+    };
+
+    let task_ref: Arc<Mutex<Task>> = edit_mode_task_and_string.0;
+    let task_ref_clone = task_ref.clone();
+
+    let mut task = task_ref.lock().unwrap();
+
+    let str: String = edit_mode_task_and_string.1;
+
+    if let Ok(key_event) = rx.recv() {
+        match key_event.code {
+            KeyCode::Char(c) => return Ok(UpdateResult::UpdateMode(AppMode::EDIT(task_ref_clone, str + c.to_string().as_str()))),
+            KeyCode::Esc => return Ok(UpdateResult::UpdateMode(AppMode::NORMAL)),
+            KeyCode::Enter => {
+                task.text = str;
+                return Ok(UpdateResult::UpdateMode(AppMode::NORMAL))
+            },
+            _ => return Ok(UpdateResult::None)
+        }
+    }
+
+    Ok(UpdateResult::Save)
 }
 
 fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
@@ -298,6 +329,13 @@ fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<U
                 task.state = task.state.next();
                 return Ok(UpdateResult::Save)
             },
+            KeyCode::Enter => {
+                let tasks = state.task_store.tasks.lock().unwrap();
+                let task_ref = tasks[state.list_state.selected().unwrap()].clone();
+                let task = task_ref.lock().unwrap();
+
+                return Ok(UpdateResult::UpdateMode(AppMode::EDIT(task_ref.clone(), task.text.clone())))
+            }
             _ => {}
         }
     }
@@ -354,6 +392,12 @@ fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState
 
     if let AppMode::INPUT(input_mode) = state.mode.clone() {
         my_box = my_box.title(format!("Input > {}", input_mode));
+    }
+
+    if let AppMode::EDIT(task_ref, str) = state.mode.clone() {
+        let task = task_ref.lock().unwrap();
+        // my_box = my_box.title(format!("Original > {}", task.text));
+        my_box = my_box.title(format!("Updated > {}", str));
     }
 
     let mut rect = frame.size().clone();
