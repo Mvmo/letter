@@ -1,7 +1,7 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 
 use crossterm::event::{KeyCode, KeyEvent};
-use tui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, ListState}};
+use tui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, ListState}, style::{Style, Color, Modifier}};
 
 use crate::{UpdateResult, AppState, AppMode};
 
@@ -19,11 +19,15 @@ impl Panel for OverviewPanel {
     }
 
     fn update(&mut self) -> UpdateResult {
-        let mut state = self.state.lock().unwrap();
+        let state = self.state.lock().unwrap();
         let rx = self.rx.lock().unwrap();
         let mut list_state = self.list_state.lock().unwrap();
         let task_store = state.task_store.lock().unwrap();
         let mut tasks = task_store.tasks.lock().unwrap();
+
+        if let None = list_state.selected() {
+            list_state.select(Some(0));
+        }
 
         if let Ok(key_event) = rx.try_recv() {
             match key_event.code {
@@ -88,20 +92,20 @@ impl Panel for OverviewPanel {
         let state = self.state.lock().unwrap();
         let task_store = state.task_store.lock().unwrap();
         let tasks = task_store.tasks.lock().unwrap();
+        let mut list_state = self.list_state.lock().unwrap();
 
         let items: Vec<ListItem> = tasks.iter()
             .map(|task| {
                 ListItem::new(format!("{}", *task.lock().unwrap()))
             }).collect();
 
-        let my_list = List::new(items).highlight_symbol("-> ");
+        let my_list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Gray));
 
         let mut rect = frame.size().clone();
         rect.height = rect.height - 2;
         rect.y = 0;
 
-        let mut ls = self.list_state.lock().unwrap();
-        frame.render_stateful_widget(my_list, rect, &mut ls);
+        frame.render_stateful_widget(my_list, rect, &mut list_state);
     }
 }
 
