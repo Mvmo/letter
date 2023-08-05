@@ -200,7 +200,7 @@ fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     Ok(())
 }
 
-fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, panel_stack: &mut Vec<Box<dyn Panel>>, state: &AppState) {
+fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, panel_stack: &mut [Box<dyn Panel>], state: &AppState) {
     panel_stack.iter_mut()
         .rev()
         .for_each(|panel| {
