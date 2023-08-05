@@ -7,13 +7,13 @@ use crate::{UpdateResult, AppState, AppMode};
 
 use super::Panel;
 
-pub struct OverviewPanel<'a> {
-    state: Arc<Mutex<AppState<'a>>>,
+pub struct OverviewPanel {
+    state: Arc<Mutex<AppState>>,
     rx: Arc<Mutex<Receiver<KeyEvent>>>,
     list_state: Arc<Mutex<ListState>>
 }
 
-impl <'a> Panel for OverviewPanel<'a> {
+impl Panel for OverviewPanel {
     fn get_name(&self) -> String {
         "Overview".to_string()
     }
@@ -22,6 +22,8 @@ impl <'a> Panel for OverviewPanel<'a> {
         let mut state = self.state.lock().unwrap();
         let rx = self.rx.lock().unwrap();
         let mut list_state = self.list_state.lock().unwrap();
+        let task_store = state.task_store.lock().unwrap();
+        let mut tasks = task_store.tasks.lock().unwrap();
 
         if let Ok(key_event) = rx.try_recv() {
             match key_event.code {
@@ -32,13 +34,13 @@ impl <'a> Panel for OverviewPanel<'a> {
                     return UpdateResult::Quit;
                 },
                 KeyCode::Char('s') => {
-                    state.task_store.tasks.lock().unwrap().sort_by_key(|task| (*task.lock().unwrap()).state);
+                    tasks.sort_by_key(|task| (*task.lock().unwrap()).state);
                     return UpdateResult::None;
                 },
                 KeyCode::Char('j') => {
                     let new_index = match list_state.selected() {
                         Some(index) => {
-                            if index >= state.task_store.tasks.lock().unwrap().len() - 1 {
+                            if index >= tasks.len() - 1 {
                                 0
                             } else {
                                 index + 1
@@ -54,7 +56,7 @@ impl <'a> Panel for OverviewPanel<'a> {
                     let new_index = match list_state.selected() {
                         Some(index) => {
                             if index == 0 {
-                                state.task_store.tasks.lock().unwrap().len() - 1
+                                tasks.len() - 1
                             } else {
                                 index - 1
                             }
@@ -66,13 +68,11 @@ impl <'a> Panel for OverviewPanel<'a> {
                     return UpdateResult::None;
                 },
                 KeyCode::Char(' ') => {
-                    let tasks = state.task_store.tasks.lock().unwrap();
                     let mut task = tasks[list_state.selected().unwrap()].lock().unwrap();
                     task.state = task.state.next();
                     return UpdateResult::Save
                 },
                 KeyCode::Enter => {
-                    let tasks = state.task_store.tasks.lock().unwrap();
                     let task_ref = tasks[list_state.selected().unwrap()].clone();
                     let task = task_ref.lock().unwrap();
 
@@ -86,7 +86,10 @@ impl <'a> Panel for OverviewPanel<'a> {
 
     fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>) {
         let state = self.state.lock().unwrap();
-        let items: Vec<ListItem> = state.task_store.tasks.lock().unwrap().iter()
+        let task_store = state.task_store.lock().unwrap();
+        let tasks = task_store.tasks.lock().unwrap();
+
+        let items: Vec<ListItem> = tasks.iter()
             .map(|task| {
                 ListItem::new(format!("{}", *task.lock().unwrap()))
             }).collect();
@@ -102,8 +105,8 @@ impl <'a> Panel for OverviewPanel<'a> {
     }
 }
 
-impl<'a> OverviewPanel<'a> {
-    pub fn new(state: Arc<Mutex<AppState<'a>>>, rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
+impl OverviewPanel {
+    pub fn new(state: Arc<Mutex<AppState>>, rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
         OverviewPanel { state, rx, list_state: Arc::new(Mutex::new(ListState::default())) }
     }
 }

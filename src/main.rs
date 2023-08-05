@@ -6,14 +6,15 @@ use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::Duration;
 use std::{path::PathBuf, fs::File, io::BufReader};
-use std::io::{Read, BufWriter, Write, self};
+use std::io::{Read, BufWriter, Write, self, Stdout};
 
 use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent};
 use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
 
 use tui::layout::{Rect, Layout, Direction, Constraint};
-use tui::Terminal;
+use tui::widgets::Paragraph;
+use tui::{Terminal, Frame};
 use tui::backend::CrosstermBackend;
 use ui::panel::Panel;
 use ui::panel::overview_panel::OverviewPanel;
@@ -162,17 +163,13 @@ impl<'a> From<PathBuf> for TaskStore {
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut task_store = TaskStore::new(PathBuf::from(DEFAULT_LOCATION));
-    task_store.add_task(Task { state: TaskState::Todo, text: String::from("hallo, welt") });
-    task_store.save();
-
-    start_ui(&mut task_store)?;
+    let task_store = Arc::new(Mutex::new(TaskStore::new(PathBuf::from(DEFAULT_LOCATION))));
+    start_ui(task_store)?;
 
     Ok(())
 }
 
-fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
-
+fn start_ui(store: Arc<Mutex<TaskStore>>) -> Result<(), Box<dyn std::error::Error>>{
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 
@@ -184,18 +181,19 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     let rx = Arc::new(Mutex::new(spawn_key_listener()?));
     let app_state = Arc::new(Mutex::new(AppState { task_store: store, mode: AppMode::NORMAL}));
 
-    let mut frame_buffers: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel::new(app_state.clone(), rx))];
+    let cloned_app_state = app_state.clone();
+    let mut panel_stack: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel::new(cloned_app_state, rx))];
 
     loop {
-        let top_frame: &mut Box<dyn Panel> = frame_buffers.last_mut().unwrap();
+        let top_frame: &mut Box<dyn Panel> = panel_stack.last_mut().unwrap();
         let update_result = top_frame.update();
         match update_result {
             UpdateResult::Quit => break,
             UpdateResult::UpdateMode(mode) => app_state.lock().unwrap().mode = mode,
-            UpdateResult::Save => app_state.lock().unwrap().task_store.save(),
+            UpdateResult::Save => app_state.lock().unwrap().task_store.lock().unwrap().save(),
             UpdateResult::None => {}
         }
-        terminal.draw(|f| top_frame.draw(f))?;
+        terminal.draw(|f| draw_ui(f, &panel_stack, app_state.clone()))?;
     }
 
     disable_raw_mode()?;
@@ -203,6 +201,33 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
 
     execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
     Ok(())
+}
+
+fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, panel_stack: &Vec<Box<dyn Panel>>, state: Arc<Mutex<AppState>>) {
+    panel_stack.iter()
+        .rev()
+        .for_each(|panel| panel.draw(frame));
+
+    draw_status_bar(frame, state);
+}
+
+fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: Arc<Mutex<AppState>>) {
+    let status_bar_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
+        .split(frame.size());
+
+    let status_bar_paragraphs_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(33), Constraint::Percentage(33), Constraint::Percentage(33)])
+        .split(status_bar_chunks[1]);
+
+    let state = state.lock().unwrap();
+
+    let mode_str: String = state.mode.clone().into();
+    let mode_p = Paragraph::new(mode_str);
+
+    frame.render_widget(mode_p, status_bar_paragraphs_chunks[0]);
 }
 
 pub enum UpdateResult {
@@ -229,8 +254,8 @@ impl Into<String> for AppMode {
     }
 }
 
-pub struct AppState<'a> {
-    task_store: &'a TaskStore,
+pub struct AppState {
+    task_store: Arc<Mutex<TaskStore>>,
     mode: AppMode,
 }
 
