@@ -1,10 +1,7 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
-
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, ListState}, style::{Style, Color, Modifier}};
-
 use crate::{UpdateResult, AppState, AppMode};
-
 use super::Panel;
 
 pub struct OverviewPanel {

@@ -183,7 +183,7 @@ fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     let rx_arc_mutex = Arc::new(Mutex::new(rx));
     let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL};
 
-    let mut panel_stack: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel::new(rx_arc_mutex.clone())), Box::new(TaskPanel { task_index: 0 })];
+    let mut panel_stack: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel::new(rx_arc_mutex.clone())), Box::new(TaskPanel::new(0, "HALLO WELT DAS IST EIN TEST".to_string(), rx_arc_mutex.clone()))];
 
     loop {
         let top_frame: &mut Box<dyn Panel> = panel_stack.last_mut().unwrap();
