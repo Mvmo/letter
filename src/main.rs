@@ -11,10 +11,10 @@ use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent};
 use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
 
-use tui::layout::{Rect, Layout, Direction, Constraint};
-use tui::widgets::Paragraph;
-use tui::{Terminal, Frame};
-use tui::backend::CrosstermBackend;
+use ratatui::layout::{Rect, Layout, Direction, Constraint};
+use ratatui::widgets::Paragraph;
+use ratatui::{Terminal, Frame};
+use ratatui::backend::CrosstermBackend;
 use ui::panel::Panel;
 use ui::panel::overview_panel::OverviewPanel;
 

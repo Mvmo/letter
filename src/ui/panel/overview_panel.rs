@@ -1,7 +1,7 @@
 use std::{io::Stdout, sync::mpsc::Receiver};
 
 use crossterm::event::{KeyCode, KeyEvent};
-use tui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, ListState}, style::{Style, Color, Modifier}};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, ListState}, style::{Style, Color, Modifier}};
 
 use crate::{UpdateResult, AppState, AppMode};
 
