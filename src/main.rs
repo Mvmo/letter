@@ -162,17 +162,17 @@ impl<'a> From<PathBuf> for TaskStore {
     }
 }
 
-trait FrameBuffer: Any {
+trait Panel: Any {
     fn get_name(&self) -> String;
     fn update(&self, rx: &Receiver<KeyEvent>, state: &mut AppState) -> Result<UpdateResult, Box<dyn std::error::Error>>;
     fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState);
 }
 
-struct OverviewFrameBuffer {
+struct OverviewPanel {
 
 }
 
-impl FrameBuffer for OverviewFrameBuffer {
+impl Panel for OverviewPanel {
     fn get_name(&self) -> String {
         return "Overview".to_string();
     }
@@ -255,9 +255,9 @@ impl FrameBuffer for OverviewFrameBuffer {
     }
 }
 
-impl Default for OverviewFrameBuffer {
+impl Default for OverviewPanel {
     fn default() -> Self {
-        OverviewFrameBuffer {  }
+        OverviewPanel {  }
     }
 }
 
@@ -272,7 +272,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
-    let frame_buffers: Vec<Box<dyn FrameBuffer>> = vec![Box::new(OverviewFrameBuffer {  })];
+    let frame_buffers: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel {  })];
 
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
