@@ -10,10 +10,12 @@ use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent, 
 use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
 
+use tui::layout::{Rect, Layout, Direction, Constraint};
 use tui::style::{Color, Style};
+use tui::text::Text;
 use tui::{Terminal, Frame, text};
 use tui::backend::CrosstermBackend;
-use tui::widgets::{Block, ListState, List, ListItem};
+use tui::widgets::{Block, ListState, List, ListItem, Paragraph, Clear, Borders, BorderType};
 
 static DEFAULT_LOCATION: &str = "tasks";
 
@@ -363,11 +365,60 @@ fn update_input_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<Up
     Ok(UpdateResult::None)
 }
 
+struct TextArea {
+    text: String,
+    cursor: u32,
+}
+
+impl TextArea {
+    fn next_char(&mut self) {
+    }
+
+    fn draw(self, frame: &mut Frame<CrosstermBackend<Stdout>>) {
+        let block = Block::default()
+            .title("Popup")
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded);
+        let area = centered_rect(60, 20, frame.size());
+
+        frame.render_widget(Clear, area);
+        frame.render_widget(block.clone(), area);
+
+        let my_text = Text::from(self.text);
+        let paragraph = Paragraph::new(my_text);
+
+        frame.render_widget(paragraph, block.inner(area));
+    }
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ].as_ref())
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ].as_ref())
+        .split(popup_layout[1])[1]
+}
+
 fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
     let my_list = List::new(vec![ListItem::new("hallo"), ListItem::new("hello")]);
     frame.render_widget(my_list, frame.size());
     draw_task_list(frame, state);
-    draw_status_bar(frame, state)
+    draw_status_bar(frame, state);
+
+    let area = TextArea { text: "hello world\nmy name is maurice".to_string(), cursor: 0 };
+    area.draw(frame);
 }
 
 fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
