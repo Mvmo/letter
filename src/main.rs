@@ -1,4 +1,7 @@
+mod frame_buffer;
+
 use core::fmt;
+use std::any::Any;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
@@ -159,6 +162,105 @@ impl<'a> From<PathBuf> for TaskStore {
     }
 }
 
+trait FrameBuffer: Any {
+    fn get_name(&self) -> String;
+    fn update(&self, rx: &Receiver<KeyEvent>, state: &mut AppState) -> Result<UpdateResult, Box<dyn std::error::Error>>;
+    fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState);
+}
+
+struct OverviewFrameBuffer {
+
+}
+
+impl FrameBuffer for OverviewFrameBuffer {
+    fn get_name(&self) -> String {
+        return "Overview".to_string();
+    }
+
+    fn update(&self, rx: &Receiver<KeyEvent>, state: &mut AppState) -> Result<UpdateResult, Box<dyn std::error::Error>> {
+        if let Ok(key_event) = rx.try_recv() {
+            match key_event.code {
+                KeyCode::Char('i') => {
+                    return Ok(UpdateResult::UpdateMode(AppMode::INPUT(String::from(""))))
+                }
+                KeyCode::Char('q') => {
+                    return Ok(UpdateResult::Quit);
+                },
+                KeyCode::Char('s') => {
+                    state.task_store.tasks.lock().unwrap().sort_by_key(|task| (*task.lock().unwrap()).state);
+                    return Ok(UpdateResult::None);
+                },
+                KeyCode::Char('j') => {
+                    let new_index = match state.list_state.selected() {
+                        Some(index) => {
+                            if index >= state.task_store.tasks.lock().unwrap().len() - 1 {
+                                0
+                            } else {
+                                index + 1
+                            }
+                        },
+                        None => 0
+                    };
+
+                    state.list_state.select(Some(new_index));
+                    return Ok(UpdateResult::None);
+                },
+                KeyCode::Char('k') => {
+                    let new_index = match state.list_state.selected() {
+                        Some(index) => {
+                            if index == 0 {
+                                state.task_store.tasks.lock().unwrap().len() - 1
+                            } else {
+                                index - 1
+                            }
+                        },
+                        None => 0
+                    };
+
+                    state.list_state.select(Some(new_index));
+                    return Ok(UpdateResult::None);
+                },
+                KeyCode::Char(' ') => {
+                    let tasks = state.task_store.tasks.lock().unwrap();
+                    let mut task = tasks[state.list_state.selected().unwrap()].lock().unwrap();
+                    task.state = task.state.next();
+                    return Ok(UpdateResult::Save)
+                },
+                KeyCode::Enter => {
+                    let tasks = state.task_store.tasks.lock().unwrap();
+                    let task_ref = tasks[state.list_state.selected().unwrap()].clone();
+                    let task = task_ref.lock().unwrap();
+
+                    return Ok(UpdateResult::UpdateMode(AppMode::EDIT(task_ref.clone(), task.text.clone())))
+                }
+                _ => {}
+            }
+        }
+        Ok(UpdateResult::None)
+    }
+
+    fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
+        let items: Vec<ListItem> = state.task_store.tasks.lock().unwrap().iter()
+            .map(|task| {
+                ListItem::new(format!("{}", *task.lock().unwrap()))
+            }).collect();
+
+        let my_list = List::new(items).highlight_symbol("-> ");
+
+        let mut rect = frame.size().clone();
+        rect.height = rect.height - 2;
+        rect.y = 0;
+
+        frame.render_stateful_widget(my_list, rect, state.list_state);
+    }
+}
+
+impl Default for OverviewFrameBuffer {
+    fn default() -> Self {
+        OverviewFrameBuffer {  }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut task_store = TaskStore::new(PathBuf::from(DEFAULT_LOCATION));
     task_store.add_task(Task { state: TaskState::Todo, text: String::from("hallo, welt") });
@@ -170,6 +272,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
+    let frame_buffers: Vec<Box<dyn FrameBuffer>> = vec![Box::new(OverviewFrameBuffer {  })];
+
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
 
@@ -184,14 +288,15 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     app_state.list_state.select(Some(0));
 
     loop {
-        let update_result = update(&mut app_state, &rx)?;
+        let top_frame = frame_buffers.last().unwrap();
+        let update_result = top_frame.update(&rx, &mut app_state)?;
         match update_result {
             UpdateResult::Quit => break,
             UpdateResult::UpdateMode(mode) => app_state.mode = mode,
             UpdateResult::Save => app_state.task_store.save(),
             UpdateResult::None => {}
         }
-        terminal.draw(|f| draw_ui(f, &mut app_state))?;
+        terminal.draw(|f| top_frame.draw(f, &mut app_state))?;
     }
 
     disable_raw_mode()?;
@@ -283,64 +388,6 @@ fn update_edit_mode(state: &mut AppState<'_>, rx: &Receiver<KeyEvent>) -> Result
 }
 
 fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
-    if let Ok(key_event) = rx.try_recv() {
-        match key_event.code {
-            KeyCode::Char('i') => {
-                return Ok(UpdateResult::UpdateMode(AppMode::INPUT(String::from(""))))
-            }
-            KeyCode::Char('q') => {
-                return Ok(UpdateResult::Quit);
-            },
-            KeyCode::Char('s') => {
-                state.task_store.tasks.lock().unwrap().sort_by_key(|task| (*task.lock().unwrap()).state);
-                return Ok(UpdateResult::None);
-            },
-            KeyCode::Char('j') => {
-                let new_index = match state.list_state.selected() {
-                    Some(index) => {
-                        if index >= state.task_store.tasks.lock().unwrap().len() - 1 {
-                            0
-                        } else {
-                            index + 1
-                        }
-                    },
-                    None => 0
-                };
-
-                state.list_state.select(Some(new_index));
-                return Ok(UpdateResult::None);
-            },
-            KeyCode::Char('k') => {
-                let new_index = match state.list_state.selected() {
-                    Some(index) => {
-                        if index == 0 {
-                            state.task_store.tasks.lock().unwrap().len() - 1
-                        } else {
-                            index - 1
-                        }
-                    },
-                    None => 0
-                };
-
-                state.list_state.select(Some(new_index));
-                return Ok(UpdateResult::None);
-            },
-            KeyCode::Char(' ') => {
-                let tasks = state.task_store.tasks.lock().unwrap();
-                let mut task = tasks[state.list_state.selected().unwrap()].lock().unwrap();
-                task.state = task.state.next();
-                return Ok(UpdateResult::Save)
-            },
-            KeyCode::Enter => {
-                let tasks = state.task_store.tasks.lock().unwrap();
-                let task_ref = tasks[state.list_state.selected().unwrap()].clone();
-                let task = task_ref.lock().unwrap();
-
-                return Ok(UpdateResult::UpdateMode(AppMode::EDIT(task_ref.clone(), task.text.clone())))
-            }
-            _ => {}
-        }
-    }
     Ok(UpdateResult::None)
 }
 
@@ -436,6 +483,7 @@ fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppSt
     frame.render_stateful_widget(my_list, rect, state.list_state);
 }
 
+
 fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
     let state_str: String = state.mode.clone().into();
     let mut my_box = Block::default()
@@ -444,6 +492,7 @@ fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState
     if let AppMode::INPUT(input_mode) = state.mode.clone() {
         my_box = my_box.title(format!("Input > {}", input_mode));
     }
+
 
     if let AppMode::EDIT(task_ref, str) = state.mode.clone() {
         let task = task_ref.lock().unwrap();
