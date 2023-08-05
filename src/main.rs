@@ -1,6 +1,7 @@
 mod ui;
 
 use core::fmt;
+use std::sync::{Mutex, Arc};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::Duration;
@@ -17,6 +18,8 @@ use ratatui::{Terminal, Frame};
 use ratatui::backend::CrosstermBackend;
 use ui::panel::Panel;
 use ui::panel::overview_panel::OverviewPanel;
+use ui::panel::task_panel::TaskPanel;
+use ui::textarea::TextArea;
 
 static DEFAULT_LOCATION: &str = "tasks";
 
@@ -132,7 +135,7 @@ impl<'a> TaskStore {
         }
     }
 
-    fn add_task(&mut self, task: Task) {
+    fn _add_task(&mut self, task: Task) {
         self.tasks.push(task)
     }
 
@@ -177,9 +180,10 @@ fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     enable_raw_mode()?;
 
     let rx = spawn_key_listener()?;
+    let rx_arc_mutex = Arc::new(Mutex::new(rx));
     let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL};
 
-    let mut panel_stack: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel::new(rx))];
+    let mut panel_stack: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel::new(rx_arc_mutex.clone())), Box::new(TaskPanel { task_index: 0 })];
 
     loop {
         let top_frame: &mut Box<dyn Panel> = panel_stack.last_mut().unwrap();

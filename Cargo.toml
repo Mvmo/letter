@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "frame-buffer"
-path = "src/frame_buffer/mod.rs"
+name = "scroll"
+path = "src/test.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 crossterm = "0.25"
 ratatui = { version = "0.22.0", features = ["all-widgets"]}
+uuid = "*"
