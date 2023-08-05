@@ -1,24 +1,22 @@
-mod frame_buffer;
+mod ui;
 
 use core::fmt;
-use std::any::Any;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::Duration;
 use std::{path::PathBuf, fs::File, io::BufReader};
-use std::io::{Read, BufWriter, Write, self, Stdout};
+use std::io::{Read, BufWriter, Write, self};
 
-use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent, KeyCode};
+use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent};
 use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
 
 use tui::layout::{Rect, Layout, Direction, Constraint};
-use tui::style::{Color, Style};
-use tui::text::Text;
-use tui::{Terminal, Frame, text};
+use tui::Terminal;
 use tui::backend::CrosstermBackend;
-use tui::widgets::{Block, ListState, List, ListItem, Paragraph, Clear, Borders, BorderType};
+use ui::panel::Panel;
+use ui::panel::overview_panel::OverviewPanel;
 
 static DEFAULT_LOCATION: &str = "tasks";
 
@@ -36,7 +34,7 @@ enum TaskState {
 }
 
 #[derive(Clone)]
-struct Task {
+pub struct Task {
     state: TaskState,
     text: String,
 }
@@ -162,104 +160,6 @@ impl<'a> From<PathBuf> for TaskStore {
     }
 }
 
-trait Panel: Any {
-    fn get_name(&self) -> String;
-    fn update(&self, rx: &Receiver<KeyEvent>, state: &mut AppState) -> Result<UpdateResult, Box<dyn std::error::Error>>;
-    fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState);
-}
-
-struct OverviewPanel {
-
-}
-
-impl Panel for OverviewPanel {
-    fn get_name(&self) -> String {
-        return "Overview".to_string();
-    }
-
-    fn update(&self, rx: &Receiver<KeyEvent>, state: &mut AppState) -> Result<UpdateResult, Box<dyn std::error::Error>> {
-        if let Ok(key_event) = rx.try_recv() {
-            match key_event.code {
-                KeyCode::Char('i') => {
-                    return Ok(UpdateResult::UpdateMode(AppMode::INPUT(String::from(""))))
-                }
-                KeyCode::Char('q') => {
-                    return Ok(UpdateResult::Quit);
-                },
-                KeyCode::Char('s') => {
-                    state.task_store.tasks.lock().unwrap().sort_by_key(|task| (*task.lock().unwrap()).state);
-                    return Ok(UpdateResult::None);
-                },
-                KeyCode::Char('j') => {
-                    let new_index = match state.list_state.selected() {
-                        Some(index) => {
-                            if index >= state.task_store.tasks.lock().unwrap().len() - 1 {
-                                0
-                            } else {
-                                index + 1
-                            }
-                        },
-                        None => 0
-                    };
-
-                    state.list_state.select(Some(new_index));
-                    return Ok(UpdateResult::None);
-                },
-                KeyCode::Char('k') => {
-                    let new_index = match state.list_state.selected() {
-                        Some(index) => {
-                            if index == 0 {
-                                state.task_store.tasks.lock().unwrap().len() - 1
-                            } else {
-                                index - 1
-                            }
-                        },
-                        None => 0
-                    };
-
-                    state.list_state.select(Some(new_index));
-                    return Ok(UpdateResult::None);
-                },
-                KeyCode::Char(' ') => {
-                    let tasks = state.task_store.tasks.lock().unwrap();
-                    let mut task = tasks[state.list_state.selected().unwrap()].lock().unwrap();
-                    task.state = task.state.next();
-                    return Ok(UpdateResult::Save)
-                },
-                KeyCode::Enter => {
-                    let tasks = state.task_store.tasks.lock().unwrap();
-                    let task_ref = tasks[state.list_state.selected().unwrap()].clone();
-                    let task = task_ref.lock().unwrap();
-
-                    return Ok(UpdateResult::UpdateMode(AppMode::EDIT(task_ref.clone(), task.text.clone())))
-                }
-                _ => {}
-            }
-        }
-        Ok(UpdateResult::None)
-    }
-
-    fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
-        let items: Vec<ListItem> = state.task_store.tasks.lock().unwrap().iter()
-            .map(|task| {
-                ListItem::new(format!("{}", *task.lock().unwrap()))
-            }).collect();
-
-        let my_list = List::new(items).highlight_symbol("-> ");
-
-        let mut rect = frame.size().clone();
-        rect.height = rect.height - 2;
-        rect.y = 0;
-
-        frame.render_stateful_widget(my_list, rect, state.list_state);
-    }
-}
-
-impl Default for OverviewPanel {
-    fn default() -> Self {
-        OverviewPanel {  }
-    }
-}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut task_store = TaskStore::new(PathBuf::from(DEFAULT_LOCATION));
@@ -272,7 +172,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
-    let frame_buffers: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel {  })];
 
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -282,21 +181,21 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     terminal.clear()?;
     enable_raw_mode()?;
 
-    let rx = spawn_key_listener()?;
+    let rx = Arc::new(Mutex::new(spawn_key_listener()?));
+    let app_state = Arc::new(Mutex::new(AppState { task_store: store, mode: AppMode::NORMAL}));
 
-    let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL, list_state: &mut ListState::default()};
-    app_state.list_state.select(Some(0));
+    let mut frame_buffers: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel::new(app_state.clone(), rx))];
 
     loop {
-        let top_frame = frame_buffers.last().unwrap();
-        let update_result = top_frame.update(&rx, &mut app_state)?;
+        let top_frame: &mut Box<dyn Panel> = frame_buffers.last_mut().unwrap();
+        let update_result = top_frame.update();
         match update_result {
             UpdateResult::Quit => break,
-            UpdateResult::UpdateMode(mode) => app_state.mode = mode,
-            UpdateResult::Save => app_state.task_store.save(),
+            UpdateResult::UpdateMode(mode) => app_state.lock().unwrap().mode = mode,
+            UpdateResult::Save => app_state.lock().unwrap().task_store.save(),
             UpdateResult::None => {}
         }
-        terminal.draw(|f| top_frame.draw(f, &mut app_state))?;
+        terminal.draw(|f| top_frame.draw(f))?;
     }
 
     disable_raw_mode()?;
@@ -306,7 +205,7 @@ fn start_ui(store: &mut TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     Ok(())
 }
 
-enum UpdateResult {
+pub enum UpdateResult {
     Quit,
     UpdateMode(AppMode),
     Save,
@@ -314,7 +213,7 @@ enum UpdateResult {
 }
 
 #[derive(Clone)]
-enum AppMode {
+pub enum AppMode {
     NORMAL,
     INPUT(String),
     EDIT(Arc<Mutex<Task>>, String)
@@ -330,10 +229,9 @@ impl Into<String> for AppMode {
     }
 }
 
-struct AppState<'a> {
+pub struct AppState<'a> {
     task_store: &'a TaskStore,
     mode: AppMode,
-    list_state: &'a mut ListState,
 }
 
 fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>> {
@@ -351,94 +249,7 @@ fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>
     Ok(rx)
 }
 
-fn update(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
-    match state.mode {
-        AppMode::NORMAL => update_normal_mode(state, rx),
-        AppMode::INPUT(_) => update_input_mode(state, rx),
-        AppMode::EDIT(_, _) => update_edit_mode(state, rx),
-    }
-}
-
-fn update_edit_mode(state: &mut AppState<'_>, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
-    let edit_mode_task_and_string = match state.mode.clone() {
-        AppMode::EDIT(task, str) => (task, str),
-        _ => return Err(format!("update input mode got called with normal mode!!").into())
-    };
-
-    let task_ref: Arc<Mutex<Task>> = edit_mode_task_and_string.0;
-    let task_ref_clone = task_ref.clone();
-
-    let mut task = task_ref.lock().unwrap();
-
-    let str: String = edit_mode_task_and_string.1;
-
-    if let Ok(key_event) = rx.recv() {
-        match key_event.code {
-            KeyCode::Char(c) => return Ok(UpdateResult::UpdateMode(AppMode::EDIT(task_ref_clone, str + c.to_string().as_str()))),
-            KeyCode::Esc => return Ok(UpdateResult::UpdateMode(AppMode::NORMAL)),
-            KeyCode::Enter => {
-                task.text = str;
-                return Ok(UpdateResult::UpdateMode(AppMode::NORMAL))
-            },
-            _ => return Ok(UpdateResult::None)
-        }
-    }
-
-    Ok(UpdateResult::Save)
-}
-
-fn update_normal_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
-    Ok(UpdateResult::None)
-}
-
-fn update_input_mode(state: &mut AppState, rx: &Receiver<KeyEvent>) -> Result<UpdateResult, Box<dyn std::error::Error>> {
-    let current_input = match state.mode.clone() {
-        AppMode::INPUT(str) => str,
-        _ => return Err(format!("update input mode got called with normal mode!!").into())
-    };
-
-    if let Ok(key_event) = rx.try_recv() {
-        match key_event.code {
-            KeyCode::Esc => {
-                return Ok(UpdateResult::UpdateMode(AppMode::NORMAL))
-            }
-            KeyCode::Char(c) => {
-                return Ok(UpdateResult::UpdateMode(AppMode::INPUT(current_input + c.to_string().as_str())))
-            }
-            _ => return Ok(UpdateResult::None)
-        }
-    };
-
-    Ok(UpdateResult::None)
-}
-
-struct TextArea {
-    text: String,
-    cursor: u32,
-}
-
-impl TextArea {
-    fn next_char(&mut self) {
-    }
-
-    fn draw(self, frame: &mut Frame<CrosstermBackend<Stdout>>) {
-        let block = Block::default()
-            .title("Popup")
-            .borders(Borders::ALL)
-            .border_type(BorderType::Rounded);
-        let area = centered_rect(60, 20, frame.size());
-
-        frame.render_widget(Clear, area);
-        frame.render_widget(block.clone(), area);
-
-        let my_text = Text::from(self.text);
-        let paragraph = Paragraph::new(my_text);
-
-        frame.render_widget(paragraph, block.inner(area));
-    }
-}
-
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+fn _centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -458,50 +269,3 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         .split(popup_layout[1])[1]
 }
 
-fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
-    let my_list = List::new(vec![ListItem::new("hallo"), ListItem::new("hello")]);
-    frame.render_widget(my_list, frame.size());
-    draw_task_list(frame, state);
-    draw_status_bar(frame, state);
-
-    let area = TextArea { text: "hello world\nmy name is maurice".to_string(), cursor: 0 };
-    area.draw(frame);
-}
-
-fn draw_task_list(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &mut AppState) {
-    let items: Vec<ListItem> = state.task_store.tasks.lock().unwrap().iter()
-        .map(|task| {
-            ListItem::new(format!("{}", *task.lock().unwrap()))
-        }).collect();
-
-    let my_list = List::new(items).highlight_symbol("-> ");
-
-    let mut rect = frame.size().clone();
-    rect.height = rect.height - 2;
-    rect.y = 0;
-
-    frame.render_stateful_widget(my_list, rect, state.list_state);
-}
-
-
-fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
-    let state_str: String = state.mode.clone().into();
-    let mut my_box = Block::default()
-        .title(text::Span::styled(state_str, Style::default().fg(Color::Black).bg(Color::LightGreen)));
-
-    if let AppMode::INPUT(input_mode) = state.mode.clone() {
-        my_box = my_box.title(format!("Input > {}", input_mode));
-    }
-
-
-    if let AppMode::EDIT(task_ref, str) = state.mode.clone() {
-        let task = task_ref.lock().unwrap();
-        // my_box = my_box.title(format!("Original > {}", task.text));
-        my_box = my_box.title(format!("Updated > {}", str));
-    }
-
-    let mut rect = frame.size().clone();
-    rect.height = 1;
-    rect.y = frame.size().bottom() - rect.height;
-    frame.render_widget(my_box, rect);
-}
