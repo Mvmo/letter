@@ -1,4 +1,4 @@
-use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
+use std::{io::Stdout, sync::mpsc::Receiver};
 
 use crossterm::event::{KeyCode, KeyEvent};
 use tui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, ListState}, style::{Style, Color, Modifier}};
@@ -8,9 +8,8 @@ use crate::{UpdateResult, AppState, AppMode};
 use super::Panel;
 
 pub struct OverviewPanel {
-    state: Arc<Mutex<AppState>>,
-    rx: Arc<Mutex<Receiver<KeyEvent>>>,
-    list_state: Arc<Mutex<ListState>>
+    rx: Receiver<KeyEvent>,
+    list_state: ListState
 }
 
 impl Panel for OverviewPanel {
@@ -18,12 +17,12 @@ impl Panel for OverviewPanel {
         "Overview".to_string()
     }
 
-    fn update(&mut self) -> UpdateResult {
-        let state = self.state.lock().unwrap();
-        let rx = self.rx.lock().unwrap();
-        let mut list_state = self.list_state.lock().unwrap();
-        let task_store = state.task_store.lock().unwrap();
-        let mut tasks = task_store.tasks.lock().unwrap();
+    fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
+        let state = app_state;
+        let rx = &self.rx;
+        let list_state = &mut self.list_state;
+        let task_store = &mut state.task_store;
+        let tasks = &mut task_store.tasks;
 
         if let None = list_state.selected() {
             list_state.select(Some(0));
@@ -38,7 +37,7 @@ impl Panel for OverviewPanel {
                     return UpdateResult::Quit;
                 },
                 KeyCode::Char('s') => {
-                    tasks.sort_by_key(|task| (*task.lock().unwrap()).state);
+                    tasks.sort_by_key(|task| (*task).state);
                     return UpdateResult::None;
                 },
                 KeyCode::Char('j') => {
@@ -72,15 +71,14 @@ impl Panel for OverviewPanel {
                     return UpdateResult::None;
                 },
                 KeyCode::Char(' ') => {
-                    let mut task = tasks[list_state.selected().unwrap()].lock().unwrap();
+                    let mut task = &mut tasks[list_state.selected().unwrap()];
                     task.state = task.state.next();
                     return UpdateResult::Save
                 },
                 KeyCode::Enter => {
-                    let task_ref = tasks[list_state.selected().unwrap()].clone();
-                    let task = task_ref.lock().unwrap();
-
-                    return UpdateResult::UpdateMode(AppMode::EDIT(task_ref.clone(), task.text.clone()))
+                    let task_index = list_state.selected().unwrap();
+                    let task_text = task_store.tasks[task_index].text.clone();
+                    return UpdateResult::UpdateMode(AppMode::EDIT(task_index, task_text))
                 }
                 _ => {}
             }
@@ -88,15 +86,13 @@ impl Panel for OverviewPanel {
         UpdateResult::None
     }
 
-    fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>) {
-        let state = self.state.lock().unwrap();
-        let task_store = state.task_store.lock().unwrap();
-        let tasks = task_store.tasks.lock().unwrap();
-        let mut list_state = self.list_state.lock().unwrap();
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, app_state: &AppState) {
+        let tasks = &app_state.task_store.tasks;
+        let list_state = &mut self.list_state;
 
         let items: Vec<ListItem> = tasks.iter()
             .map(|task| {
-                ListItem::new(format!("{}", *task.lock().unwrap()))
+                ListItem::new(format!("{}", *task))
             }).collect();
 
         let my_list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Gray));
@@ -105,12 +101,12 @@ impl Panel for OverviewPanel {
         rect.height = rect.height - 2;
         rect.y = 0;
 
-        frame.render_stateful_widget(my_list, rect, &mut list_state);
+        frame.render_stateful_widget(my_list, rect, list_state);
     }
 }
 
 impl OverviewPanel {
-    pub fn new(state: Arc<Mutex<AppState>>, rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
-        OverviewPanel { state, rx, list_state: Arc::new(Mutex::new(ListState::default())) }
+    pub fn new(rx: Receiver<KeyEvent>) -> Self {
+        OverviewPanel { rx, list_state: ListState::default() }
     }
 }
