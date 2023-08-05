@@ -8,6 +8,7 @@ use std::time::Duration;
 use std::{path::PathBuf, fs::File, io::BufReader};
 use std::io::{Read, BufWriter, Write, self, Stdout};
 
+use crossterm::cursor::{SetCursorShape, CursorShape};
 use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent};
 use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
@@ -172,7 +173,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let cursor_style = CursorShape::Line;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, SetCursorShape(cursor_style))?;
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -183,7 +185,8 @@ fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     let rx_arc_mutex = Arc::new(Mutex::new(rx));
     let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL};
 
-    let mut panel_stack: Vec<Box<dyn Panel>> = vec![Box::new(OverviewPanel::new(rx_arc_mutex.clone())), Box::new(TaskPanel::new(0, "HALLO WELT DAS IST EIN TEST".to_string(), rx_arc_mutex.clone()))];
+    // Box::new(OverviewPanel::new(rx_arc_mutex.clone()))
+    let mut panel_stack: Vec<Box<dyn Panel>> = vec![Box::new(TaskPanel::new(0, "HALLO WELT DAS IST EIN TEST".to_string(), rx_arc_mutex.clone()))];
 
     loop {
         let top_frame: &mut Box<dyn Panel> = panel_stack.last_mut().unwrap();
