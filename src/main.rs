@@ -1,4 +1,5 @@
 mod ui;
+mod command;
 
 use core::fmt;
 use std::sync::{Mutex, Arc};
@@ -242,19 +243,17 @@ pub enum UpdateResult {
     None
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum AppMode {
     NORMAL,
-    INPUT(String),
-    EDIT(usize, String)
+    INPUT,
 }
 
 impl Into<String> for AppMode {
     fn into(self) -> String {
         match self {
             Self::NORMAL => String::from("NORMAL"),
-            Self::INPUT(_) => String::from("INPUT"),
-            Self::EDIT(_, _) => String::from("EDIT")
+            Self::INPUT => String::from("INPUT"),
         }
     }
 }

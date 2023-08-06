@@ -177,6 +177,22 @@ impl<S, R> TextArea<S, R> {
         self.move_cursor_left();
     }
 
+    pub fn delete_current_line(&mut self) {
+        let (x, y) = self.cursor;
+        if y == 0 {
+            self.lines.get_mut(y).unwrap()
+                .clear();
+            return;
+        }
+
+        if y == self.lines.len() - 1 {
+            self.move_cursor_up();
+        }
+
+        self.lines.remove(y);
+        self.move_cursor_to_line_end();
+    }
+
     pub fn update(&mut self, rx: Arc<Mutex<Receiver<KeyEvent>>>, state: &mut S) -> Option<R> {
         let rx = rx.lock().unwrap();
         if let Ok(key) = rx.recv() {
