@@ -58,6 +58,7 @@ impl Panel for OverviewPanel {
         if let Ok(key_event) = rx.try_recv() {
             match key_event.code {
                 KeyCode::Char('i') => {
+                    self.text_area.move_cursor_to_line_end();
                     return UpdateResult::UpdateMode(AppMode::INPUT(String::from("")))
                 }
                 KeyCode::Char('q') => {
@@ -121,17 +122,22 @@ impl Panel for OverviewPanel {
 
         let items: Vec<ListItem> = tasks.iter()
             .map(|task| {
-                ListItem::new(format!("{}", task.text))
+                ListItem::new(format!("{}", task.state))
             }).collect();
 
         let my_list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Gray));
 
         let mut rect = frame.size().clone();
+        rect.width = 2;
         rect.height = rect.height - 2;
         rect.y = 0;
 
         frame.render_stateful_widget(my_list, rect, list_state);
-        self.text_area.draw(frame, frame.size());
+
+        let mut text_area_rect = frame.size().clone();
+        text_area_rect.x = 2;
+        text_area_rect.width = text_area_rect.width - 2;
+        self.text_area.draw(frame, text_area_rect);
     }
 }
 

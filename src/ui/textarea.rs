@@ -222,9 +222,9 @@ impl<S, R> TextArea<S, R> {
         self.lines.iter()
             .map(|line| Paragraph::new(line.to_string()))
             .enumerate()
-            .for_each(|(index, p)| frame.render_widget(p, Rect::new(0, index as u16, frame.size().width, 1)));
+            .for_each(|(index, p)| frame.render_widget(p, Rect::new(rect.x, rect.y + index as u16, rect.width, 1)));
 
         let (x, y) = self.cursor;
-        frame.set_cursor(x as u16, y as u16);
+        frame.set_cursor(rect.x + x as u16, rect.y + y as u16);
     }
 }
