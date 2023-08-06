@@ -19,8 +19,6 @@ use ratatui::{Terminal, Frame};
 use ratatui::backend::CrosstermBackend;
 use ui::panel::Panel;
 use ui::panel::overview_panel::OverviewPanel;
-use ui::panel::task_panel::TaskPanel;
-use ui::textarea::TextArea;
 
 static DEFAULT_LOCATION: &str = "tasks";
 
@@ -185,8 +183,9 @@ fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     let rx_arc_mutex = Arc::new(Mutex::new(rx));
     let mut app_state = AppState { task_store: store, mode: AppMode::NORMAL};
 
-    // Box::new(OverviewPanel::new(rx_arc_mutex.clone()))
-    let mut panel_stack: Vec<Box<dyn Panel>> = vec![Box::new(TaskPanel::new(0, "HALLO WELT DAS IST EIN TEST".to_string(), rx_arc_mutex.clone()))];
+    let mut overview_panel = Box::new(OverviewPanel::new(rx_arc_mutex.clone()));
+    overview_panel.init(&app_state);
+    let mut panel_stack: Vec<Box<dyn Panel>> = vec![overview_panel];
 
     loop {
         let top_frame: &mut Box<dyn Panel> = panel_stack.last_mut().unwrap();

@@ -1,12 +1,37 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, ListState}, style::{Style, Color, Modifier}};
-use crate::{UpdateResult, AppState, AppMode};
+use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea};
 use super::Panel;
 
 pub struct OverviewPanel {
     rx: Arc<Mutex<Receiver<KeyEvent>>>,
+    text_area: TextArea<AppState, UpdateResult>,
     list_state: ListState
+}
+
+impl OverviewPanel {
+    pub fn init(&mut self, app_state: &AppState) {
+        let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
+            return (true, UpdateResult::None);
+        };
+
+        let esc_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
+            return (true, UpdateResult::UpdateMode(AppMode::NORMAL));
+        };
+
+        self.text_area.disallow_line_breaks();
+
+        self.text_area.on_key(KeyCode::Enter, Box::new(enter_callback));
+        self.text_area.on_key(KeyCode::Esc, Box::new(esc_callback));
+
+        let lines: Vec<String> = app_state.task_store.tasks.clone()
+            .iter()
+            .map(|task| task.text.clone())
+            .collect();
+
+        self.text_area.set_lines(lines);
+    }
 }
 
 impl Panel for OverviewPanel {
@@ -23,6 +48,10 @@ impl Panel for OverviewPanel {
 
         if let None = list_state.selected() {
             list_state.select(Some(0));
+        }
+
+        if let AppMode::INPUT(_) = state.mode {
+            return self.text_area.update(rx.clone(), state).unwrap_or(UpdateResult::None);
         }
 
         let rx = self.rx.lock().unwrap();
@@ -50,6 +79,7 @@ impl Panel for OverviewPanel {
                         None => 0
                     };
 
+                    self.text_area.set_cursor((0, new_index));
                     list_state.select(Some(new_index));
                     return UpdateResult::None;
                 },
@@ -65,6 +95,7 @@ impl Panel for OverviewPanel {
                         None => 0
                     };
 
+                    self.text_area.set_cursor((0, new_index));
                     list_state.select(Some(new_index));
                     return UpdateResult::None;
                 },
@@ -90,7 +121,7 @@ impl Panel for OverviewPanel {
 
         let items: Vec<ListItem> = tasks.iter()
             .map(|task| {
-                ListItem::new(format!("{}", *task))
+                ListItem::new(format!("{}", task.text))
             }).collect();
 
         let my_list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Gray));
@@ -100,11 +131,12 @@ impl Panel for OverviewPanel {
         rect.y = 0;
 
         frame.render_stateful_widget(my_list, rect, list_state);
+        self.text_area.draw(frame, frame.size());
     }
 }
 
 impl OverviewPanel {
     pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
-        OverviewPanel { rx, list_state: ListState::default() }
+        OverviewPanel { rx, list_state: ListState::default(), text_area: TextArea::new(vec![]) }
     }
 }

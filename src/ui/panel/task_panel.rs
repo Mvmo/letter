@@ -12,7 +12,7 @@ use super::Panel;
 
 pub struct TaskPanel {
     task_index: usize,
-    text_area: TextArea,
+    text_area: TextArea<Option<u16>, bool>,
     rx: Arc<Mutex<Receiver<KeyEvent>>>
 }
 
@@ -32,7 +32,7 @@ impl Panel for TaskPanel {
     }
 
     fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
-        self.text_area.update(self.rx.clone());
+        self.text_area.update(self.rx.clone(), &mut None);
         UpdateResult::None
     }
 

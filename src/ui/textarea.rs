@@ -1,17 +1,39 @@
-use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
+use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}, collections::HashMap};
 
-use crossterm::{event::{KeyEvent, KeyCode}, cursor};
+use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::Paragraph};
 
-pub struct TextArea {
+pub struct TextArea<S, R> {
     pub lines: Vec<String>,
     cursor: (usize, usize),
     allow_line_breaks: bool,
+    callbacks: HashMap<KeyCode, Box<dyn FnMut(&mut Self, &mut S) -> (bool, R)>>
 }
 
-impl TextArea {
+impl<S, R> TextArea<S, R> {
     pub fn new(lines: Vec<String>) -> Self {
-        TextArea { lines, cursor: (0, 0), allow_line_breaks: true }
+        TextArea { lines, cursor: (0, 0), allow_line_breaks: true, callbacks: HashMap::new() }
+    }
+
+    pub fn disallow_line_breaks(&mut self) {
+        self.allow_line_breaks = false
+    }
+
+    pub fn set_lines(&mut self, lines: Vec<String>) {
+        self.cursor = (0, 0);
+        self.lines = lines;
+    }
+
+    pub fn on_key(&mut self, key_code: KeyCode, callback: Box<dyn FnMut(&mut Self, &mut S) -> (bool, R)>) {
+        self.callbacks.insert(key_code, callback);
+    }
+
+    pub fn get_cursor(&self) -> (usize, usize) {
+        self.cursor
+    }
+
+    pub fn set_cursor(&mut self, cursor: (usize, usize)) {
+        self.cursor = cursor
     }
 
     pub fn move_cursor_left(&mut self) {
@@ -134,6 +156,10 @@ impl TextArea {
         let str = end.get_mut(0).unwrap();
 
         if x == 0 || str.len() == 0 {
+            if !self.allow_line_breaks {
+                return;
+            }
+
             let line_above = start.get_mut(start.len() - 1).unwrap();
             let line_len = line_above.len();
             line_above.push_str(str.as_str());
@@ -147,10 +173,20 @@ impl TextArea {
         self.move_cursor_left();
     }
 
-    pub fn update(&mut self, rx: Arc<Mutex<Receiver<KeyEvent>>>) {
+    pub fn update(&mut self, rx: Arc<Mutex<Receiver<KeyEvent>>>, state: &mut S) -> Option<R> {
         let rx = rx.lock().unwrap();
         if let Ok(key) = rx.recv() {
-            match key.code {
+            let key_code = key.code;
+            if self.callbacks.contains_key(&key_code) {
+                let mut callback = self.callbacks.remove(&key_code).unwrap();
+                let (should_cancel, result) = callback(self, state);
+                self.callbacks.insert(key_code, callback);
+                if should_cancel {
+                    return Some(result);
+                }
+            }
+
+            match key_code {
                 KeyCode::Left => {
                     self.move_cursor_left();
                 },
@@ -179,6 +215,7 @@ impl TextArea {
             }
         }
 
+        None
     }
 
     pub fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>, rect: Rect) {
