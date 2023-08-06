@@ -1,7 +1,7 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}, collections::HashMap};
 
 use crossterm::event::{KeyEvent, KeyCode};
-use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::Paragraph};
+use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::Paragraph, style::{Style, Color}};
 
 pub struct TextArea<S, R> {
     pub lines: Vec<String>,
@@ -223,12 +223,19 @@ impl<S, R> TextArea<S, R> {
     }
 
     pub fn draw(&self, frame: &mut Frame<CrosstermBackend<Stdout>>, rect: Rect) {
+        let (x, y) = self.cursor;
         self.lines.iter()
             .map(|line| Paragraph::new(line.to_string()))
             .enumerate()
+            .map(|(idx, p)| {
+                if idx == y {
+                    (idx, p.style(Style::default().bg(Color::Rgb(100, 100, 100))))
+                } else {
+                    (idx, p)
+                }
+            })
             .for_each(|(index, p)| frame.render_widget(p, Rect::new(rect.x, rect.y + index as u16, rect.width, 1)));
 
-        let (x, y) = self.cursor;
         frame.set_cursor(rect.x + x as u16, rect.y + y as u16);
     }
 }

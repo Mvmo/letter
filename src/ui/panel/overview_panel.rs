@@ -61,7 +61,7 @@ impl Panel for OverviewPanel {
 
         let rx = self.rx.lock().unwrap();
         if let Ok(key_event) = rx.try_recv() {
-            let (x, y) = self.text_area.get_cursor();
+            let (_, y) = self.text_area.get_cursor();
             match key_event.code {
                 KeyCode::Char('i') => {
                     self.text_area.move_cursor_to_line_end();
@@ -105,8 +105,7 @@ impl Panel for OverviewPanel {
                 ListItem::new(format!("{}", task.state))
             }).collect();
 
-        let my_list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::Gray));
-
+        let my_list = List::new(items);
         let mut rect = frame.size().clone();
         rect.width = 2;
         rect.height = rect.height - 2;
