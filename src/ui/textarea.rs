@@ -150,6 +150,10 @@ impl<S, R> TextArea<S, R> {
         self.move_cursor_to_line_start();
     }
 
+    pub fn insert_line(&mut self, index: usize, line: String) {
+        self.lines.insert(index, line);
+    }
+
     pub fn delete_char_at_cursor(&mut self) {
         let (x, y) = self.cursor;
         let (start, end) = self.lines.split_at_mut(y);

@@ -1,7 +1,7 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, ListState}, style::{Style, Color, Modifier}};
-use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea};
+use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, TaskState};
 use super::Panel;
 
 pub struct OverviewPanel {
@@ -13,10 +13,22 @@ pub struct OverviewPanel {
 impl OverviewPanel {
     pub fn init(&mut self, app_state: &AppState) {
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
-            return (true, UpdateResult::None);
+            let (_, y) = text_area.get_cursor();
+            app_state.task_store.tasks.insert(y + 1, Task { state: TaskState::Todo, text: String::new() });
+            text_area.insert_line(y + 1, String::new());
+            text_area.move_cursor_down();
+            return (true, UpdateResult::Save);
         };
 
         let esc_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
+            text_area.lines.iter()
+                .enumerate()
+                .for_each(|(idx, line)| {
+                    app_state.task_store.tasks.get_mut(idx).unwrap().text = line.clone();
+                });
+
+            app_state.task_store.save();
+
             return (true, UpdateResult::UpdateMode(AppMode::NORMAL));
         };
 
