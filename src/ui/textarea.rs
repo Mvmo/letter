@@ -12,6 +12,11 @@ pub struct TextArea<S, R> {
 
 impl<S, R> TextArea<S, R> {
     pub fn new(lines: Vec<String>) -> Self {
+        let mut lines = lines;
+        if lines.len() == 0 {
+            lines = vec!["".to_string()];
+        }
+
         TextArea { lines, cursor: (0, 0), allow_line_breaks: true, callbacks: HashMap::new() }
     }
 
@@ -22,6 +27,9 @@ impl<S, R> TextArea<S, R> {
     pub fn set_lines(&mut self, lines: Vec<String>) {
         self.cursor = (0, 0);
         self.lines = lines;
+        if self.lines.len() == 0 {
+            self.lines = vec!["".to_string()]
+        }
     }
 
     pub fn on_key(&mut self, key_code: KeyCode, callback: Box<dyn FnMut(&mut Self, &mut S) -> (bool, R)>) {
@@ -232,11 +240,12 @@ impl<S, R> TextArea<S, R> {
         let (x, y) = self.cursor;
         if y == 0 {
             self.lines.remove(y);
-            self.move_cursor_down();
-
             if self.lines.len() == 0 {
                 self.lines.insert(0, "".to_string());
+            } else {
+                self.move_cursor_down();
             }
+
             return;
         }
 

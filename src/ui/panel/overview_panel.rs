@@ -64,6 +64,13 @@ impl OverviewPanel {
         };
 
         let esc_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
+            if text_area.lines.len() > app_state.task_store.tasks.len() {
+                let diff = text_area.lines.len() - app_state.task_store.tasks.len();
+                for _ in 0..diff {
+                    app_state.task_store.tasks.push(Task { state: TaskState::Todo, text: String::new() });
+                }
+            }
+
             text_area.lines.iter()
                 .enumerate()
                 .for_each(|(idx, line)| {
@@ -151,12 +158,14 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::InsertNewLineAbove => {
                         let index = y.max(0);
-                        self.text_area.move_cursor_up();
+                        task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string() });
                         self.text_area.insert_line(index, String::new());
+                        self.text_area.move_cursor_to_line_start();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
                     }
                     NormalCommand::InsertNewLineBelow => {
                         let index = y + 1;
+                        task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string() });
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
