@@ -119,6 +119,55 @@ impl<S, R> TextArea<S, R> {
         self.cursor = (line.len(), y);
     }
 
+    pub fn move_cursor_one_word_forward(&mut self) {
+        let (x, y) = self.cursor;
+        let line = self.lines.get(y).unwrap();
+        if line.len() == 0 {
+            self.move_cursor_down();
+            // TODO edgecase: last line last word
+            self.move_cursor_to_line_start();
+            return;
+        }
+
+        let next_word_index = line.char_indices()
+            .skip(x)
+            .skip_while(|(_, c)| *c != ' ')
+            .skip_while(|(_, c)| *c == ' ')
+            .map(|(i, _)| i)
+            .find(|_| true);
+
+        if let Some(index) = next_word_index {
+            self.cursor = (index, y);
+        } else {
+            self.move_cursor_down();
+        }
+    }
+
+    pub fn move_cursor_one_word_backward(&mut self) {
+        let (x, y) = self.cursor;
+        let line = self.lines.get(y).unwrap();
+        if line.len() == 0 || x == 0 {
+            self.move_cursor_up();
+            // TODO edgecase: last line last word
+            self.move_cursor_to_line_end();
+            return;
+        }
+
+        let (start, _) = line.split_at(x);
+        let prev_index = start.char_indices()
+            .rev()
+            .skip_while(|(_, c)| *c != ' ')
+            .skip_while(|(_, c)| *c == ' ')
+            .map(|(i, _)| i)
+            .find(|_| true);
+
+        if let Some(index) = prev_index {
+            self.cursor = (index, y);
+        } else {
+            self.move_cursor_down();
+        }
+    }
+
     pub fn insert_char_at_cursor(&mut self, c: char) {
         let (x, y) = self.cursor;
         let str = self.lines.get_mut(y).unwrap();

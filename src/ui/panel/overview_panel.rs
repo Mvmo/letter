@@ -1,6 +1,6 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, text::Span};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}};
 use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, TaskState, command::KeyCommandComposer};
 use super::Panel;
 
@@ -10,6 +10,8 @@ pub enum CursorMovement {
     Down,
     Left,
     Right,
+    WordForward,
+    WordBackward,
     StartOfLine,
     EndOfLine,
 }
@@ -19,6 +21,8 @@ pub enum NormalCommand {
     Quit,
     Sort,
     SwitchToInsertMode,
+    InsertAtEndOfLine,
+    InsertAtBeginningOfLine,
     DeleteLine,
     ToggleTaskState,
     MoveCursor(CursorMovement)
@@ -34,6 +38,8 @@ pub struct OverviewPanel {
 impl OverviewPanel {
     pub fn init(&mut self, app_state: &AppState) {
         self.command_composer.register_keycommand(vec![KeyCode::Char('i')], NormalCommand::SwitchToInsertMode);
+        self.command_composer.register_keycommand(vec![KeyCode::Char('I')], NormalCommand::InsertAtBeginningOfLine);
+        self.command_composer.register_keycommand(vec![KeyCode::Char('A')], NormalCommand::InsertAtEndOfLine);
         self.command_composer.register_keycommand(vec![KeyCode::Char('d'), KeyCode::Char('d')], NormalCommand::DeleteLine);
         self.command_composer.register_keycommand(vec![KeyCode::Char('t')], NormalCommand::ToggleTaskState);
         self.command_composer.register_keycommand(vec![KeyCode::Char(' '), KeyCode::Char('q')], NormalCommand::Quit);
@@ -42,6 +48,8 @@ impl OverviewPanel {
         self.command_composer.register_keycommand(vec![KeyCode::Char('j')], NormalCommand::MoveCursor(CursorMovement::Down));
         self.command_composer.register_keycommand(vec![KeyCode::Char('k')], NormalCommand::MoveCursor(CursorMovement::Up));
         self.command_composer.register_keycommand(vec![KeyCode::Char('l')], NormalCommand::MoveCursor(CursorMovement::Right));
+        self.command_composer.register_keycommand(vec![KeyCode::Char('w')], NormalCommand::MoveCursor(CursorMovement::WordForward));
+        self.command_composer.register_keycommand(vec![KeyCode::Char('b')], NormalCommand::MoveCursor(CursorMovement::WordBackward));
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
@@ -105,9 +113,8 @@ impl Panel for OverviewPanel {
                         return UpdateResult::None;
                     },
                     NormalCommand::DeleteLine => {
-                        task_store.tasks.remove(y);
                         self.text_area.delete_current_line();
-                        // todo: remove line from task_store
+                        task_store.tasks.remove(y);
                         return UpdateResult::Save;
                     },
                     NormalCommand::ToggleTaskState => {
@@ -124,9 +131,19 @@ impl Panel for OverviewPanel {
                             CursorMovement::Right => self.text_area.move_cursor_right(),
                             CursorMovement::StartOfLine => self.text_area.move_cursor_to_line_start(),
                             CursorMovement::EndOfLine => self.text_area.move_cursor_to_line_end(),
+                            CursorMovement::WordForward => self.text_area.move_cursor_one_word_forward(),
+                            CursorMovement::WordBackward => self.text_area.move_cursor_one_word_backward(),
                         }
 
                         return UpdateResult::None;
+                    },
+                    NormalCommand::InsertAtEndOfLine => {
+                        self.text_area.move_cursor_to_line_end();
+                        return UpdateResult::UpdateMode(AppMode::INPUT);
+                    }
+                    NormalCommand::InsertAtBeginningOfLine => {
+                        self.text_area.move_cursor_to_line_start();
+                        return UpdateResult::UpdateMode(AppMode::INPUT);
                     }
                 }
             }
