@@ -2,9 +2,10 @@ mod ui;
 mod command;
 
 use core::fmt;
+use std::str::FromStr;
 use std::sync::{Mutex, Arc};
 use std::sync::mpsc::{self, Receiver};
-use std::thread;
+use std::{thread, fs};
 use std::time::Duration;
 use std::{path::PathBuf, fs::File, io::BufReader};
 use std::io::{Read, BufWriter, Write, self, Stdout};
@@ -15,13 +16,20 @@ use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mod
 use crossterm::execute;
 
 use ratatui::layout::{Rect, Layout, Direction, Constraint};
-use ratatui::widgets::Paragraph;
 use ratatui::{Terminal, Frame};
 use ratatui::backend::CrosstermBackend;
 use ui::panel::Panel;
 use ui::panel::overview_panel::OverviewPanel;
 
-static DEFAULT_LOCATION: &str = "tasks";
+static DEFAULT_LOCATION: &str = "./.letter";
+
+pub fn ensure_letter_file_exists() {
+    let path_buf = PathBuf::from_str(DEFAULT_LOCATION).unwrap(); // TODO: Unwraps
+    if !path_buf.exists() {
+        fs::File::create(path_buf).unwrap();
+        return;
+    }
+}
 
 struct TaskStore {
     path: PathBuf,
@@ -164,6 +172,7 @@ impl<'a> From<PathBuf> for TaskStore {
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ensure_letter_file_exists();
     let task_store = TaskStore::new(PathBuf::from(DEFAULT_LOCATION));
     start_ui(task_store)?;
 
