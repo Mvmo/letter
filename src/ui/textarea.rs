@@ -140,6 +140,7 @@ impl<S, R> TextArea<S, R> {
             self.cursor = (index, y);
         } else {
             self.move_cursor_down();
+            self.move_cursor_to_line_start();
         }
     }
 
@@ -162,9 +163,10 @@ impl<S, R> TextArea<S, R> {
             .find(|_| true);
 
         if let Some(index) = prev_index {
-            self.cursor = (index, y);
+            self.cursor = (index + 1, y);
         } else {
-            self.move_cursor_down();
+            self.move_cursor_up();
+            self.move_cursor_to_line_end();
         }
     }
 
@@ -229,8 +231,12 @@ impl<S, R> TextArea<S, R> {
     pub fn delete_current_line(&mut self) {
         let (x, y) = self.cursor;
         if y == 0 {
-            self.lines.get_mut(y).unwrap()
-                .clear();
+            self.lines.remove(y);
+            self.move_cursor_down();
+
+            if self.lines.len() == 0 {
+                self.lines.insert(0, "".to_string());
+            }
             return;
         }
 
