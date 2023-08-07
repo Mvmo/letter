@@ -23,9 +23,11 @@ pub enum NormalCommand {
     SwitchToInsertMode,
     InsertAtEndOfLine,
     InsertAtBeginningOfLine,
+    InsertNewLineBelow,
+    InsertNewLineAbove,
     DeleteLine,
     ToggleTaskState,
-    MoveCursor(CursorMovement)
+    MoveCursor(CursorMovement),
 }
 
 pub struct OverviewPanel {
@@ -50,6 +52,8 @@ impl OverviewPanel {
         self.command_composer.register_keycommand(vec![KeyCode::Char('l')], NormalCommand::MoveCursor(CursorMovement::Right));
         self.command_composer.register_keycommand(vec![KeyCode::Char('w')], NormalCommand::MoveCursor(CursorMovement::WordForward));
         self.command_composer.register_keycommand(vec![KeyCode::Char('b')], NormalCommand::MoveCursor(CursorMovement::WordBackward));
+        self.command_composer.register_keycommand(vec![KeyCode::Char('O')], NormalCommand::InsertNewLineAbove);
+        self.command_composer.register_keycommand(vec![KeyCode::Char('o')], NormalCommand::InsertNewLineBelow);
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
@@ -145,6 +149,18 @@ impl Panel for OverviewPanel {
                         self.text_area.move_cursor_to_line_start();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
                     }
+                    NormalCommand::InsertNewLineAbove => {
+                        let index = y.max(0);
+                        self.text_area.move_cursor_up();
+                        self.text_area.insert_line(index, String::new());
+                        return UpdateResult::UpdateMode(AppMode::INPUT);
+                    }
+                    NormalCommand::InsertNewLineBelow => {
+                        let index = y + 1;
+                        self.text_area.insert_line(index, String::new());
+                        self.text_area.move_cursor_down();
+                        return UpdateResult::UpdateMode(AppMode::INPUT);
+                    }
                 }
             }
         }
@@ -186,7 +202,13 @@ impl Panel for OverviewPanel {
         rr.y = rr.height - 4;
         rr.height = 2;
 
-        let p = Paragraph::new(format!("cl -> {}", self.command_composer.len()));
+        let (x, y) = self.text_area.get_cursor();
+        let p = Paragraph::new(format!(
+            "cl -> {} | {} | {},{}",
+            self.command_composer.len(),
+            self.command_composer.get_combo_string(),
+            x, y
+        ));
         frame.render_widget(p, rr);
     }
 }

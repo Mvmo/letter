@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::mpsc::{Sender, Receiver, self}, thread::current};
+use std::{collections::HashMap, sync::mpsc::{Sender, Receiver, self}};
 
 use crossterm::event::KeyCode;
 
@@ -6,6 +6,14 @@ pub struct KeyCommandComposer<C: Copy> {
     command_registry: HashMap<Vec<KeyCode>, C>,
     current_composition: Vec<KeyCode>,
     tx: Sender<C>,
+}
+
+fn key_code_to_string(key_code: &KeyCode) -> String {
+    match key_code {
+        KeyCode::Char(' ') => "<space>".to_string(),
+        KeyCode::Char(c) => c.to_string(),
+        _ => "{unknown}".to_string()
+    }
 }
 
 impl<C: Copy> KeyCommandComposer<C> {
@@ -16,6 +24,12 @@ impl<C: Copy> KeyCommandComposer<C> {
 
     pub fn len(&self) -> usize {
         return self.current_composition.len();
+    }
+
+    pub fn get_combo_string(&self) -> String {
+        self.current_composition.iter()
+            .map(|key_code| key_code_to_string(key_code))
+            .collect()
     }
 
     pub fn push_key(&mut self, key_code: KeyCode) {
