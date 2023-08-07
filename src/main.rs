@@ -172,8 +172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
     let mut stdout = io::stdout();
-    let cursor_style = CursorShape::Line;
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, SetCursorShape(cursor_style))?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture, SetCursorShape(CursorShape::Block))?;
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -193,7 +192,9 @@ fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
         let update_result = top_frame.update(&mut app_state);
         match update_result {
             UpdateResult::Quit => break,
-            UpdateResult::UpdateMode(mode) => app_state.mode = mode,
+            UpdateResult::UpdateMode(mode) => {
+                app_state.mode = mode;
+            },
             UpdateResult::Save => app_state.task_store.save(),
             UpdateResult::None => {}
         }

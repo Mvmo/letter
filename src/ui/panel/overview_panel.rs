@@ -27,6 +27,7 @@ pub enum NormalCommand {
     InsertNewLineAbove,
     DeleteLine,
     ToggleTaskState,
+    DeleteChar,
     MoveCursor(CursorMovement),
 }
 
@@ -54,6 +55,7 @@ impl OverviewPanel {
         self.command_composer.register_keycommand(vec![KeyCode::Char('b')], NormalCommand::MoveCursor(CursorMovement::WordBackward));
         self.command_composer.register_keycommand(vec![KeyCode::Char('O')], NormalCommand::InsertNewLineAbove);
         self.command_composer.register_keycommand(vec![KeyCode::Char('o')], NormalCommand::InsertNewLineBelow);
+        self.command_composer.register_keycommand(vec![KeyCode::Char('x')], NormalCommand::DeleteChar);
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
@@ -127,7 +129,12 @@ impl Panel for OverviewPanel {
                         self.text_area.delete_current_line();
                         task_store.tasks.remove(y);
                         return UpdateResult::Save;
-                    },
+                    }
+                    NormalCommand::DeleteChar => {
+                        // TODO last char could break everything
+                        self.text_area.delete_char_at_cursor();
+                        return UpdateResult::Save;
+                    }
                     NormalCommand::ToggleTaskState => {
                         let mut task = tasks.get_mut(y).unwrap();
                         task.state = task.state.next();
