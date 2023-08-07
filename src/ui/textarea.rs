@@ -238,10 +238,12 @@ impl<S, R> TextArea<S, R> {
 
     pub fn delete_current_line(&mut self) {
         let (x, y) = self.cursor;
+
         if y == 0 {
             self.lines.remove(y);
             if self.lines.len() == 0 {
                 self.lines.insert(0, "".to_string());
+                self.move_cursor_to_line_start();
             } else {
                 self.move_cursor_down();
             }
