@@ -214,27 +214,6 @@ fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, panel_stack: &mut [Box<d
         .for_each(|panel| {
             panel.draw(frame, state)
         });
-
-    draw_status_bar(frame, state);
-}
-
-fn draw_status_bar(frame: &mut Frame<CrosstermBackend<Stdout>>, state: &AppState) {
-    let status_bar_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)].as_ref())
-        .split(frame.size());
-
-    let status_bar_paragraphs_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(33), Constraint::Percentage(33), Constraint::Percentage(33)])
-        .split(status_bar_chunks[1]);
-
-    let state = state;
-
-    let mode_str: String = state.mode.clone().into();
-    let mode_p = Paragraph::new(mode_str);
-
-    frame.render_widget(mode_p, status_bar_paragraphs_chunks[0]);
 }
 
 pub enum UpdateResult {

@@ -1,6 +1,6 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint}};
 use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, TaskState, command::KeyCommandComposer};
 use super::Panel;
 
@@ -174,6 +174,11 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::InsertNewLineBelow => {
                         let index = y + 1;
+                        if task_store.tasks.len() == 0 {
+                            task_store.tasks.insert(index - 1, Task { state: TaskState::Todo, text: "".to_string() });
+                            return UpdateResult::UpdateMode(AppMode::INPUT);
+                        }
+
                         task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string() });
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
@@ -196,38 +201,56 @@ impl Panel for OverviewPanel {
     }
 
     fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, app_state: &AppState) {
-        let tasks = &app_state.task_store.tasks;
-        let items: Vec<ListItem> = tasks.iter()
+        let full_width = frame.size().width;
+        let full_height = frame.size().height;
+
+        let overview_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(full_height - 3),
+                Constraint::Length(3)
+            ]).split(frame.size());
+
+        let editor_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(2),
+                Constraint::Length(full_width - 2)
+            ]).split(overview_layout[0]);
+
+        let task_status_list: Vec<ListItem> = app_state.task_store.tasks.iter()
             .map(|task| {
                 ListItem::new(format!("{}", task.state))
             }).collect();
-
-        let my_list = List::new(items);
-        let mut rect = frame.size().clone();
-        rect.width = 2;
-        rect.height = rect.height - 4;
-        rect.y = 0;
-
-        frame.render_widget(my_list, rect);
-
-        let mut text_area_rect = frame.size().clone();
-        text_area_rect.x = 2;
-        text_area_rect.width = text_area_rect.width - 2;
-        text_area_rect.height = text_area_rect.height - 4;
-        self.text_area.draw(frame, text_area_rect);
-
-        let mut rr = frame.size();
-        rr.y = rr.height - 4;
-        rr.height = 2;
+        frame.render_widget(List::new(task_status_list), editor_layout[0]);
+        self.text_area.draw(frame, editor_layout[1]); // TODO: Create custom widget for text area
 
         let (x, y) = self.text_area.get_cursor();
-        let p = Paragraph::new(format!(
-            "cl -> {} | {} | {},{}",
-            self.command_composer.len(),
-            self.command_composer.get_combo_string(),
-            x, y
-        ));
-        frame.render_widget(p, rr);
+        let status_bar_v_layout = Layout::default()
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1)
+            ]).split(overview_layout[1]);
+
+        let status_bar_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(40),
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
+            ]).split(status_bar_v_layout[1]);
+
+        let mode_str: String = app_state.mode.into();
+        let mode_paragraph = Paragraph::new(format!("-- {mode_str} --"));
+        frame.render_widget(mode_paragraph, status_bar_layout[0]);
+
+        let combo_str = self.command_composer.get_combo_string();
+        let combo_paragraph = Paragraph::new(format!("{combo_str}"));
+        frame.render_widget(combo_paragraph, status_bar_layout[1]);
+
+        let coordinates_paragraph = Paragraph::new(format!("{y},{x}"));
+        frame.render_widget(coordinates_paragraph, status_bar_layout[2]);
     }
 }
 
