@@ -5,6 +5,7 @@ use ratatui::{Frame, backend::CrosstermBackend};
 use crate::{UpdateResult, AppState};
 
 pub mod overview_panel;
+pub mod task_note_panel;
 
 pub trait Panel {
     fn get_name(&self) -> String;
