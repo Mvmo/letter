@@ -2,6 +2,7 @@ mod ui;
 mod command;
 
 use core::fmt;
+use std::panic::{PanicInfo, self};
 use std::str::FromStr;
 use std::sync::{Mutex, Arc};
 use std::sync::mpsc::{self, Receiver};
@@ -170,8 +171,14 @@ impl<'a> From<PathBuf> for TaskStore {
     }
 }
 
+fn panic_handler(info: &PanicInfo) {
+    execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+    println!("{}", info);
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    panic::set_hook(Box::new(panic_handler));
+
     ensure_letter_file_exists();
     let task_store = TaskStore::new(PathBuf::from(DEFAULT_LOCATION));
     start_ui(task_store)?;
