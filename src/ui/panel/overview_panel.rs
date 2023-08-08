@@ -1,8 +1,10 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint}};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint}, style::{Style, Color}};
 use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, TaskState, command::KeyCommandComposer};
 use super::Panel;
+
+// TODO: Bug when first line is just text line and then press enter
 
 #[derive(Clone, Copy)]
 pub enum CursorMovement {
@@ -242,7 +244,7 @@ impl Panel for OverviewPanel {
             ]).split(status_bar_v_layout[1]);
 
         let mode_str: String = app_state.mode.into();
-        let mode_paragraph = Paragraph::new(format!("-- {mode_str} --"));
+        let mode_paragraph = Paragraph::new(format!("-- {mode_str} --")).style(Style::default().fg(Color::LightYellow));
         frame.render_widget(mode_paragraph, status_bar_layout[0]);
 
         let combo_str = self.command_composer.get_combo_string();
