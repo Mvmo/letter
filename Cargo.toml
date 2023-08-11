@@ -13,3 +13,4 @@ path = "src/test.rs"
 crossterm = "0.25"
 ratatui = { version = "0.22.0", features = ["all-widgets"]}
 uuid = "*"
+sqlx = { version = "0.7", features = [ "runtime-async-std" ] }
