@@ -19,13 +19,14 @@ use crossterm::execute;
 use ratatui::layout::{Rect, Layout, Direction, Constraint};
 use ratatui::{Terminal, Frame};
 use ratatui::backend::CrosstermBackend;
+use sqlx::sqlite::SqlitePoolOptions;
 use ui::panel::Panel;
 use ui::panel::overview_panel::OverviewPanel;
 
-static DEFAULT_LOCATION: &str = "./.letter";
+static LETTER_DB_FILE: &str = "./.letter.db";
 
 pub fn ensure_letter_file_exists() {
-    let path_buf = PathBuf::from_str(DEFAULT_LOCATION).unwrap(); // TODO: Unwraps
+    let path_buf = PathBuf::from_str(LETTER_DB_FILE).unwrap(); // TODO: Unwraps
     if !path_buf.exists() {
         fs::File::create(path_buf).unwrap();
         return;
@@ -176,12 +177,27 @@ fn panic_handler(info: &PanicInfo) {
     println!("{}", info);
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[async_std::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     panic::set_hook(Box::new(panic_handler));
 
     ensure_letter_file_exists();
-    let task_store = TaskStore::new(PathBuf::from(DEFAULT_LOCATION));
-    start_ui(task_store)?;
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect(LETTER_DB_FILE)
+        .await?;
+
+    let row: (i64,) = sqlx::query_as("SELECT $1")
+        .bind(150_i64)
+        .fetch_one(&pool)
+        .await?;
+
+    assert_eq!(row.0, 150);
+
+    dbg!(row);
+
+    //let task_store = TaskStore::new(PathBuf::from(LETTER_DB_FILE));
+    //start_ui(task_store)?;
 
     Ok(())
 }
