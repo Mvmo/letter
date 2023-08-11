@@ -13,12 +13,14 @@ use std::io::{Read, BufWriter, Write, self, Stdout};
 
 use crossterm::cursor::{SetCursorShape, CursorShape};
 use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent};
+use crossterm::style::Color;
 use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
 use crossterm::execute;
 
 use ratatui::layout::{Rect, Layout, Direction, Constraint};
 use ratatui::{Terminal, Frame};
 use ratatui::backend::CrosstermBackend;
+use sqlx::{FromRow, Row};
 use sqlx::sqlite::SqlitePoolOptions;
 use ui::panel::Panel;
 use ui::panel::overview_panel::OverviewPanel;
@@ -46,7 +48,7 @@ enum TaskState {
     Unkown
 }
 
-#[derive(Clone)]
+#[derive(Clone, FromRow)]
 pub struct Task {
     state: TaskState,
     text: String,
@@ -177,25 +179,33 @@ fn panic_handler(info: &PanicInfo) {
     println!("{}", info);
 }
 
+#[derive(sqlx::FromRow)]
+struct Badge {
+    id: i64,
+    name: String,
+    color: String
+}
+
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    panic::set_hook(Box::new(panic_handler));
-
     ensure_letter_file_exists();
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
         .connect(LETTER_DB_FILE)
         .await?;
 
-    let row: (i64,) = sqlx::query_as("SELECT $1")
-        .bind(150_i64)
-        .fetch_one(&pool)
+    sqlx::migrate!()
+        .run(&pool)
         .await?;
 
-    assert_eq!(row.0, 150);
+    let result = sqlx::query_as::<_, Badge>("SELECT * FROM badges")
+         .fetch_all(&pool)
+         .await?;
 
-    dbg!(row);
-
+    result.iter()
+        .for_each(|badge| {
+            println!("{}", badge.name);
+        });
     //let task_store = TaskStore::new(PathBuf::from(LETTER_DB_FILE));
     //start_ui(task_store)?;
 
