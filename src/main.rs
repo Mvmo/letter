@@ -131,8 +131,7 @@ impl TaskStore {
 
 async fn create_database_connection() -> Result<SqliteConnection> {
     let database_path_str = "./.letter.db";
-
-    //OpenOptions::new().create(true).truncate(false).open(Path::new(database_path_str))?;
+    // TODO - create file if it doesn't exist // OpenOptions::new().create(true).truncate(false).open(Path::new(database_path_str))?;
 
     SqliteConnection::connect(database_path_str)
         .await
@@ -147,7 +146,6 @@ async fn main() -> Result<()> {
     task_store.create_task(Task { id: None, text: "hallo welt".to_string(), badge_id: None }).await?;
 
     start_ui(task_store)?;
-    //task_store.close().await;
 
     Ok(())
 }
