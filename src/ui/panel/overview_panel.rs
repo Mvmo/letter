@@ -62,6 +62,7 @@ impl OverviewPanel {
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
             // TODO app_state.task_store.tasks.insert(y + 1, Task { state: TaskState::Todo, text: String::new(), badge: None });
+            app_state.task_store.insert_task(y as i64 + 1, &Task::default());
             text_area.insert_line(y + 1, String::new());
             text_area.move_cursor_down();
             return (true, UpdateResult::Save);
