@@ -1,7 +1,7 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint}, style::{Style, Color}};
-use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, TaskState, command::KeyCommandComposer};
+use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, command::KeyCommandComposer};
 use super::Panel;
 
 // TODO: Bug when first line is just text line and then press enter
@@ -61,7 +61,7 @@ impl OverviewPanel {
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
-            app_state.task_store.tasks.insert(y + 1, Task { state: TaskState::Todo, text: String::new() });
+            // TODO app_state.task_store.tasks.insert(y + 1, Task { state: TaskState::Todo, text: String::new(), badge: None });
             text_area.insert_line(y + 1, String::new());
             text_area.move_cursor_down();
             return (true, UpdateResult::Save);
@@ -71,7 +71,7 @@ impl OverviewPanel {
             if text_area.lines.len() > app_state.task_store.tasks.len() {
                 let diff = text_area.lines.len() - app_state.task_store.tasks.len();
                 for _ in 0..diff {
-                    app_state.task_store.tasks.push(Task { state: TaskState::Todo, text: String::new() });
+                    // TODO app_state.task_store.tasks.push(Task { state: TaskState::Todo, text: String::new(), badge: None });
                 }
             }
 
@@ -81,7 +81,7 @@ impl OverviewPanel {
                     app_state.task_store.tasks.get_mut(idx).unwrap().text = line.clone();
                 });
 
-            app_state.task_store.save();
+            // TODO app_state.task_store.save();
             return (true, UpdateResult::UpdateMode(AppMode::NORMAL));
         };
 
@@ -90,7 +90,7 @@ impl OverviewPanel {
         self.text_area.on_key(KeyCode::Enter, Box::new(enter_callback));
         self.text_area.on_key(KeyCode::Esc, Box::new(esc_callback));
 
-        let lines: Vec<String> = app_state.task_store.tasks.clone()
+        let lines: Vec<String> = app_state.task_store.tasks
             .iter()
             .map(|task| task.text.clone())
             .collect();
@@ -124,7 +124,7 @@ impl Panel for OverviewPanel {
                         return UpdateResult::Quit;
                     },
                     NormalCommand::Sort => {
-                        tasks.sort_by_key(|task| (*task).state);
+                        // TODO tasks.sort_by_key(|task| (*task).state);
                         return UpdateResult::None;
                     },
                     NormalCommand::DeleteLine => {
@@ -141,8 +141,8 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::ToggleTaskState => {
                         let mut task = tasks.get_mut(y).unwrap();
-                        task.state = task.state.next();
-                        task_store.save();
+                        // TODO task.state = task.state.next();
+                        // TODO task_store.save();
                         return UpdateResult::None;
                     }
                     NormalCommand::MoveCursor(movement) => {
@@ -169,7 +169,7 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::InsertNewLineAbove => {
                         let index = y.max(0);
-                        task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string() });
+                        // TODO task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_to_line_start();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
@@ -177,11 +177,11 @@ impl Panel for OverviewPanel {
                     NormalCommand::InsertNewLineBelow => {
                         let index = y + 1;
                         if task_store.tasks.len() == 0 {
-                            task_store.tasks.insert(index - 1, Task { state: TaskState::Todo, text: "".to_string() });
+                            // TODO task_store.tasks.insert(index - 1, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
                             return UpdateResult::UpdateMode(AppMode::INPUT);
                         }
 
-                        task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string() });
+                        // TODO task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
@@ -222,7 +222,7 @@ impl Panel for OverviewPanel {
 
         let task_status_list: Vec<ListItem> = app_state.task_store.tasks.iter()
             .map(|task| {
-                ListItem::new(format!("{}", task.state))
+                ListItem::new(format!("{}", task.badge_id.unwrap_or(-1)))
             }).collect();
         frame.render_widget(List::new(task_status_list), editor_layout[0]);
         self.text_area.draw(frame, editor_layout[1]); // TODO: Create custom widget for text area

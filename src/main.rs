@@ -1,218 +1,158 @@
 mod ui;
 mod command;
 
-use core::fmt;
-use std::panic::{PanicInfo, self};
-use std::str::FromStr;
-use std::sync::{Mutex, Arc};
-use std::sync::mpsc::{self, Receiver};
-use std::{thread, fs};
-use std::time::Duration;
-use std::{path::PathBuf, fs::File, io::BufReader};
-use std::io::{Read, BufWriter, Write, self, Stdout};
+use std::{fs::{File, OpenOptions}, collections::HashMap, str::FromStr, io::{self, Stdout}, sync::{Arc, Mutex, mpsc::{Receiver, self}}, thread, time::Duration, path::Path};
+use crossterm::{execute, terminal::{EnterAlternateScreen, enable_raw_mode, disable_raw_mode, LeaveAlternateScreen}, event::{EnableMouseCapture, DisableMouseCapture, KeyEvent, self}, cursor::{SetCursorShape, CursorShape}};
+use ratatui::{style::Color, prelude::{CrosstermBackend, Direction, Constraint, Rect, Layout}, Terminal, Frame};
+use sqlx::{SqliteConnection, Connection, FromRow, sqlite::SqliteRow, Row};
+use ui::panel::{overview_panel::OverviewPanel, Panel};
 
-use crossterm::cursor::{SetCursorShape, CursorShape};
-use crossterm::event::{EnableMouseCapture, DisableMouseCapture, self, KeyEvent};
-use crossterm::style::Color;
-use crossterm::terminal::{enable_raw_mode, EnterAlternateScreen, disable_raw_mode, LeaveAlternateScreen};
-use crossterm::execute;
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-use ratatui::layout::{Rect, Layout, Direction, Constraint};
-use ratatui::{Terminal, Frame};
-use ratatui::backend::CrosstermBackend;
-use sqlx::{FromRow, Row};
-use sqlx::sqlite::SqlitePoolOptions;
-use ui::panel::Panel;
-use ui::panel::overview_panel::OverviewPanel;
-
-static LETTER_DB_FILE: &str = "./.letter.db";
-
-pub fn ensure_letter_file_exists() {
-    let path_buf = PathBuf::from_str(LETTER_DB_FILE).unwrap(); // TODO: Unwraps
-    if !path_buf.exists() {
-        fs::File::create(path_buf).unwrap();
-        return;
-    }
+pub struct Badge {
+    id: i32,
+    name: String,
+    color: Color
 }
 
-struct TaskStore {
-    path: PathBuf,
-    tasks: Vec<Task>,
-}
+impl<'a> FromRow<'a, SqliteRow> for Badge {
+    fn from_row(row: &'a SqliteRow) -> std::result::Result<Self, sqlx::Error> {
+        let badge_id = row.try_get::<i32, &str>("id")?;
+        let badge_name = row.try_get::<String, &str>("name")?;
+        let badge_color_str = row.try_get::<String, &str>("color")?;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum TaskState {
-    Todo,
-    InProgress,
-    Done,
-    Unkown
-}
+        let badge_color = Color::from_str(&badge_color_str)
+            .map_err(|_| sqlx::Error::Decode("couldn't decode color".into()))?;
 
-#[derive(Clone, FromRow)]
-pub struct Task {
-    state: TaskState,
-    text: String,
-}
-
-impl TaskState {
-    fn next(&self) -> Self {
-        match self {
-            Self::Todo => Self::InProgress,
-            Self::InProgress => Self::Done,
-            Self::Done => Self::Todo,
-            Self::Unkown => Self::Todo,
-        }
-    }
-}
-
-impl fmt::Display for TaskState {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", match self {
-            Self::Todo => "◻️",
-            Self::InProgress => "🟨",
-            Self::Done => "✅",
-            Self::Unkown => "🚫"
+        Ok(Badge {
+            id: badge_id,
+            name: badge_name,
+            color: badge_color
         })
     }
 }
 
-impl<'a> fmt::Display for Task {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.state, self.text)
+pub struct Task {
+    id: Option<i32>,
+    text: String,
+    badge_id: Option<i32>
+}
+
+impl<'a> FromRow<'a, SqliteRow> for Task {
+    fn from_row(row: &'a SqliteRow) -> std::result::Result<Self, sqlx::Error> {
+        let task_id = row.try_get::<i32, &str>("id")?;
+        let task_text = row.try_get::<String, &str>("text")?;
+        let task_badge_id = row.try_get::<Option<i32>, &str>("badge_id")?;
+
+        Ok(Self {
+            id: Some(task_id),
+            text: task_text,
+            badge_id: task_badge_id
+        })
     }
 }
 
-impl Into<String> for TaskState {
-    fn into(self) -> String {
-        match self {
-            TaskState::Todo => String::from("T"),
-            TaskState::InProgress => String::from("P"),
-            TaskState::Done => String::from("D"),
-            TaskState::Unkown => String::from("?")
-        }
-    }
+pub struct TaskStore {
+    connection: SqliteConnection,
+
+    pub badges: HashMap<i32, Badge>,
+    pub tasks: Vec<Task>
 }
 
-impl From<&str> for TaskState {
-    fn from(value: &str) -> Self {
-        match value {
-            "T" => TaskState::Todo,
-            "P" => TaskState::InProgress,
-            "D" => TaskState::Done,
-            _ => TaskState::Unkown
-        }
-    }
-}
-
-
-
-impl Into<String> for Task {
-    fn into(self) -> String {
-        let state_str: String = self.state.into();
-        return format!("{} {}", state_str, self.text);
-    }
-}
-
-impl Task {
-    fn from_line(line: impl Into<String>) -> Option<Task> {
-        let line: String = line.into();
-        let mut splitted = line.splitn(2, " ");
-        let state = TaskState::from(splitted.next()?.clone());
-        let text = splitted.next()?.clone();
-
-        let task = Task { state: state.clone(), text: text.to_string() };
-        Some(task)
-    }
-}
-
-impl<'a> TaskStore {
-    fn new(path: PathBuf) -> Self {
-        match File::open(path.clone()) {
-            Ok(file) => {
-                let mut reader = BufReader::new(file);
-                let mut str = String::new();
-                reader.read_to_string(&mut str).expect("BITTE");
-
-                let tasks: Vec<Task> = str.to_owned().split("\n")
-                    .into_iter()
-                    .filter_map(|line| Task::from_line(line))
-                    .collect();
-
-                TaskStore { tasks, path }
-            },
-            Err(err) => {
-                eprintln!("Error opening file: {}", err);
-                TaskStore { tasks: vec![], path }
-            }
+impl TaskStore {
+    pub fn new(connection: SqliteConnection) -> Self {
+        TaskStore {
+            connection,
+            badges: HashMap::new(),
+            tasks: vec![]
         }
     }
 
-    fn _add_task(&mut self, task: Task) {
-        self.tasks.push(task)
+    async fn ensure_proper_setup(&mut self) -> Result<()> {
+        sqlx::query(r#"
+            CREATE TABLE IF NOT EXISTS badges (
+                id    INTEGER PRIMARY KEY NOT NULL,
+                name  TEXT                NOT NULL,
+                color TEXT                NOT NULL /* ansi color format */
+            );
+
+            CREATE TABLE IF NOT EXISTS tasks (
+                id       INTEGER PRIMARY KEY NOT NULL,
+                text     TEXT                NOT NULL,
+                badge_id INTEGER,
+
+                FOREIGN KEY (badge_id) REFERENCES badges (id)
+            );
+
+            INSERT INTO badges (name, color)
+                SELECT 'TODO', '#e5b562'
+                UNION ALL
+                SELECT 'In Progress', '#10edbd'
+                UNION ALL
+                SELECT 'Done', '#11ed15'
+            WHERE (SELECT count(*) FROM badges) = 0;
+        "#).execute(&mut self.connection)
+            .await?;
+
+        Ok(())
     }
 
-    fn save(&self) {
-        let file = File::create(self.path.clone());
-        if let Ok(file) = file {
-            let mut writer = BufWriter::new(file);
-            self.tasks.iter()
-                .for_each(|task| {
-                    let task = task.clone();
-                    let task_str: String = task.clone().into();
-                    writer.write(format!("{}\n", task_str).as_bytes()).expect("couldn't write task to file :(");
-                });
+    pub async fn fetch_data(&mut self) -> Result<()> {
+        self.ensure_proper_setup().await?;
 
-            writer.flush().expect("couldn't flush file");
-        }
+        self.badges = sqlx::query_as::<_, Badge>("SELECT * FROM badges")
+            .fetch_all(&mut self.connection)
+            .await?
+            .drain(..)
+            .map(|badge| (badge.id, badge))
+            .collect();
+
+        self.tasks = sqlx::query_as::<_, Task>("SELECT * FROM tasks")
+            .fetch_all(&mut self.connection)
+            .await?;
+
+        Ok(())
     }
 
-}
+    pub async fn create_task(&mut self, task: Task) -> Result<()> {
+        sqlx::query("INSERT INTO tasks (text, badge_id) VALUES ($1, $2);")
+            .bind(task.text)
+            .bind(task.badge_id)
+            .execute(&mut self.connection)
+            .await?;
 
-impl<'a> From<PathBuf> for TaskStore {
-    fn from(path: PathBuf) -> Self {
-        TaskStore { path, tasks: vec![] }
+        Ok(())
+    }
+
+    pub async fn close(self) {
+        self.connection.close();
     }
 }
 
-fn panic_handler(info: &PanicInfo) {
-    execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
-    println!("{}", info);
-}
+async fn create_database_connection() -> Result<SqliteConnection> {
+    let database_path_str = "./.letter.db";
 
-#[derive(sqlx::FromRow)]
-struct Badge {
-    id: i64,
-    name: String,
-    color: String
+    //OpenOptions::new().create(true).truncate(false).open(Path::new(database_path_str))?;
+
+    SqliteConnection::connect(database_path_str)
+        .await
+        .map_err(|_| "cannot open sqlite database file".into())
 }
 
 #[async_std::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ensure_letter_file_exists();
-    let pool = SqlitePoolOptions::new()
-        .max_connections(1)
-        .connect(LETTER_DB_FILE)
-        .await?;
+async fn main() -> Result<()> {
+    let connection = create_database_connection().await?;
+    let mut task_store = TaskStore::new(connection);
+    task_store.fetch_data().await?;
+    task_store.create_task(Task { id: None, text: "hallo welt".to_string(), badge_id: None }).await?;
 
-    sqlx::migrate!()
-        .run(&pool)
-        .await?;
-
-    let result = sqlx::query_as::<_, Badge>("SELECT * FROM badges")
-         .fetch_all(&pool)
-         .await?;
-
-    result.iter()
-        .for_each(|badge| {
-            println!("{}", badge.name);
-        });
-    //let task_store = TaskStore::new(PathBuf::from(LETTER_DB_FILE));
-    //start_ui(task_store)?;
+    start_ui(task_store)?;
+    //task_store.close().await;
 
     Ok(())
 }
 
-fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
+fn start_ui(store: TaskStore) -> Result<()> {
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture, SetCursorShape(CursorShape::Block))?;
 
@@ -237,7 +177,7 @@ fn start_ui(store: TaskStore) -> Result<(), Box<dyn std::error::Error>>{
             UpdateResult::UpdateMode(mode) => {
                 app_state.mode = mode;
             },
-            UpdateResult::Save => app_state.task_store.save(),
+            UpdateResult::Save => {},// app_state.task_store.save(),
             UpdateResult::None => {}
         }
         terminal.draw(|f| draw_ui(f, &mut panel_stack, &app_state))?;
@@ -285,7 +225,7 @@ pub struct AppState {
     mode: AppMode,
 }
 
-fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>> {
+fn spawn_key_listener() -> Result<Receiver<KeyEvent>> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         loop {
@@ -300,23 +240,23 @@ fn spawn_key_listener() -> Result<Receiver<KeyEvent>, Box<dyn std::error::Error>
     Ok(rx)
 }
 
-fn _centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ].as_ref())
-        .split(r);
+ fn _centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+     let popup_layout = Layout::default()
+         .direction(Direction::Vertical)
+         .constraints([
+             Constraint::Percentage((100 - percent_y) / 2),
+             Constraint::Percentage(percent_y),
+             Constraint::Percentage((100 - percent_y) / 2),
+         ].as_ref())
+         .split(r);
 
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ].as_ref())
-        .split(popup_layout[1])[1]
-}
+     Layout::default()
+         .direction(Direction::Horizontal)
+         .constraints([
+             Constraint::Percentage((100 - percent_x) / 2),
+             Constraint::Percentage(percent_x),
+             Constraint::Percentage((100 - percent_x) / 2),
+         ].as_ref())
+         .split(popup_layout[1])[1]
+ }
 
