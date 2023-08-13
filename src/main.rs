@@ -1,10 +1,10 @@
 mod ui;
 mod command;
 
-use std::{fs::{File, OpenOptions}, collections::HashMap, str::FromStr, io::{self, Stdout}, sync::{Arc, Mutex, mpsc::{Receiver, self}}, thread, time::Duration, path::Path};
+use std::{collections::HashMap, str::FromStr, io::{self, Stdout}, sync::{Arc, Mutex, mpsc::{Receiver, self}}, thread, time::Duration};
 use crossterm::{execute, terminal::{EnterAlternateScreen, enable_raw_mode, disable_raw_mode, LeaveAlternateScreen}, event::{EnableMouseCapture, DisableMouseCapture, KeyEvent, self}, cursor::{SetCursorShape, CursorShape}};
 use ratatui::{style::Color, prelude::{CrosstermBackend, Direction, Constraint, Rect, Layout}, Terminal, Frame};
-use sqlx::{SqliteConnection, Connection, FromRow, sqlite::{SqliteRow, SqliteQueryResult}, Row, Sqlite};
+use rusqlite::{Connection, Row};
 use ui::panel::{overview_panel::OverviewPanel, Panel};
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -15,14 +15,13 @@ pub struct Badge {
     color: Color
 }
 
-impl<'a> FromRow<'a, SqliteRow> for Badge {
-    fn from_row(row: &'a SqliteRow) -> std::result::Result<Self, sqlx::Error> {
-        let badge_id = row.try_get::<i64, &str>("id")?;
-        let badge_name = row.try_get::<String, &str>("name")?;
-        let badge_color_str = row.try_get::<String, &str>("color")?;
+impl Badge {
+    fn from_row(row: &Row) -> Result<Self> {
+        let badge_id = row.get("id")?;
+        let badge_name = row.get("name")?;
+        let badge_color_str: String = row.get("color")?;
 
-        let badge_color = Color::from_str(&badge_color_str)
-            .map_err(|_| sqlx::Error::Decode("couldn't decode color".into()))?;
+        let badge_color: Color = Color::from_str(&badge_color_str)?;
 
         Ok(Badge {
             id: badge_id,
@@ -39,11 +38,11 @@ pub struct Task {
     badge_id: Option<i64>
 }
 
-impl<'a> FromRow<'a, SqliteRow> for Task {
-    fn from_row(row: &'a SqliteRow) -> std::result::Result<Self, sqlx::Error> {
-        let task_id = row.try_get::<i64, &str>("id")?;
-        let task_text = row.try_get::<String, &str>("text")?;
-        let task_badge_id = row.try_get::<Option<i64>, &str>("badge_id")?;
+impl Task {
+    fn from_row(row: &Row) -> Result<Self> {
+        let task_id = row.get("id")?;
+        let task_text = row.get("text")?;
+        let task_badge_id = row.get("badge_id")?;
 
         Ok(Self {
             id: Some(task_id),
@@ -64,14 +63,14 @@ impl Default for Task {
 }
 
 pub struct TaskStore {
-    connection: SqliteConnection,
+    connection: Connection,
 
     pub badges: HashMap<i64, Badge>,
     pub tasks: Vec<Task>
 }
 
 impl TaskStore {
-    pub fn new(connection: SqliteConnection) -> Self {
+    pub fn new(connection: Connection) -> Self {
         TaskStore {
             connection,
             badges: HashMap::new(),
@@ -79,8 +78,8 @@ impl TaskStore {
         }
     }
 
-    async fn ensure_proper_setup(&mut self) -> Result<()> {
-        sqlx::query(r#"
+    fn ensure_proper_setup(&mut self) -> Result<()> {
+        self.connection.execute(r#"
             CREATE TABLE IF NOT EXISTS badges (
                 id    INTEGER PRIMARY KEY NOT NULL,
                 name  TEXT                NOT NULL,
@@ -103,84 +102,77 @@ impl TaskStore {
                 UNION ALL
                 SELECT 'Done', '#11ed15'
             WHERE (SELECT count(*) FROM badges) = 0;
-        "#).execute(&mut self.connection)
-            .await?;
+        "#, ())?;
 
         Ok(())
     }
 
-    pub async fn fetch_data(&mut self) -> Result<()> {
-        self.ensure_proper_setup().await?;
+    pub fn fetch_data(&mut self) -> Result<()> {
+        self.ensure_proper_setup()?;
 
-        self.badges = sqlx::query_as::<_, Badge>("SELECT * FROM badges")
-            .fetch_all(&mut self.connection)
-            .await?
-            .drain(..)
+        self.badges = self.connection.prepare("SELECT * FROM badges")?
+            .query_map([], |row| {
+                Badge::from_row(row)
+                    .map_err(|_| rusqlite::Error::ExecuteReturnedResults)
+            })?
+            .filter_map(|badge| badge.ok())
             .map(|badge| (badge.id, badge))
             .collect();
 
-        self.tasks = sqlx::query_as::<_, Task>("SELECT * FROM tasks ORDER BY sort_order")
-            .fetch_all(&mut self.connection)
-            .await?;
+        self.tasks = self.connection.prepare("SELECT * FROM tasks ORDER BY sort_order")?
+            .query_map([], |row| {
+                Task::from_row(row)
+                    .map_err(|_| rusqlite::Error::ExecuteReturnedResults)
+            })?
+            .filter_map(|task| task.ok())
+            .collect();
 
         Ok(())
     }
 
-    async fn insert_task(&mut self, sort_index: i64, task: &Task) -> Result<()> {
-        sqlx::query("UPDATE tasks SET sort_order = sort_order + 1 WHERE sort_order >= $1")
-            .bind(sort_index)
-            .execute(&mut self.connection)
-            .await?;
-
-        sqlx::query("INSERT INTO tasks (text, badge_id, sort_order) VALUES ($1, $2, $3)")
-            .bind(&task.text)
-            .bind(task.badge_id)
-            .bind(sort_index)
-            .execute(&mut self.connection)
-            .await?;
+    fn insert_task(&mut self, sort_index: i64, task: &Task) -> Result<()> {
+        self.connection.execute("UPDATE tasks SET sort_order = sort_order + 1 WHERE sort_order >= ?1", (sort_index,))?;
+        self.connection.execute("INSERT INTO tasks (text, badge_id, sort_order) VALUES (?1, ?2, ?3)", (&task.text, task.badge_id, sort_index))?;
 
         Ok(())
     }
 
-    pub async fn create_task(&mut self, task: Task) -> Result<()> {
-        let index = self.tasks.len() as i64;
-        self.insert_task(index, &task).await?;
+    pub fn create_task_at(&mut self, index: i64, task: Task) -> Result<()> {
+        self.insert_task(index, &task)?;
         self.tasks.insert(index as usize, task);
 
         Ok(())
     }
 
-    pub async fn delete_task(&mut self, task: &Task) -> Result<()> {
-        sqlx::query("DELETE FROM tasks WHERE id = $1 RETURNING")
-            .bind(task.id)
-            .execute(&mut self.connection)
-            .await?;
+    pub fn create_task(&mut self, task: Task) -> Result<()> {
+        let index = self.tasks.len() as i64;
+        self.create_task_at(index, task)?;
 
+        Ok(())
+    }
+
+    pub fn delete_task(&mut self, task: &Task) -> Result<()> {
+        self.connection.execute("DELETE FROM tasks WHERE id = ?1", (task.id,))?;
         self.tasks.retain(|t| t != task);
 
         Ok(())
     }
 
-    pub async fn close(self) {
-        self.connection.close();
-    }
 }
 
-async fn create_database_connection() -> Result<SqliteConnection> {
+fn create_database_connection() -> Result<Connection> {
     let database_path_str = "./.letter.db";
     // TODO - create file if it doesn't exist // OpenOptions::new().create(true).truncate(false).open(Path::new(database_path_str))?;
 
-    SqliteConnection::connect(database_path_str)
-        .await
+    Connection::open(database_path_str)
         .map_err(|_| "cannot open sqlite database file".into())
 }
 
-#[async_std::main]
-async fn main() -> Result<()> {
-    let connection = create_database_connection().await?;
+fn main() -> Result<()> {
+    let connection = create_database_connection()?;
     let mut task_store = TaskStore::new(connection);
-    task_store.fetch_data().await?;
-    task_store.create_task(Task { id: None, text: "hallo welt".to_string(), badge_id: Some(1) }).await?;
+    task_store.fetch_data()?;
+    task_store.create_task(Task { id: None, text: "hallo welt".to_string(), badge_id: Some(1) })?;
 
     start_ui(task_store)?;
 
