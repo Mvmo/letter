@@ -22,7 +22,9 @@ pub enum CursorMovement {
 pub struct BadgeSelectPanel {
     rx: Arc<Mutex<Receiver<KeyEvent>>>,
     position: (usize, usize),
-    cursor: usize
+    cursor: usize,
+    task_idx_sort_order: usize,
+    selected_hash: i64
 }
 
 impl Panel for BadgeSelectPanel {
@@ -36,6 +38,11 @@ impl Panel for BadgeSelectPanel {
             match key_event.code {
                 KeyCode::Char('j') => self.cursor += 1,
                 KeyCode::Char('k') => self.cursor -= 1,
+                KeyCode::Enter => {
+                    let badge = app_state.task_store.badges.get(&self.selected_hash);
+                    app_state.task_store.update_task_badge(self.task_idx_sort_order as i64, self.selected_hash);
+                    return UpdateResult::Quit;
+                }
                 KeyCode::Esc => return UpdateResult::Quit,
                 _ => {}
             }
@@ -47,9 +54,10 @@ impl Panel for BadgeSelectPanel {
         let list_items: Vec<ListItem> = app_state.task_store.badges
             .iter()
             .enumerate()
-            .map(|(idx, (_, badge))| {
+            .map(|(idx, (hash, badge))| {
                 let mut list_item = ListItem::new(badge.name.clone());
                 if idx == self.cursor {
+                    self.selected_hash = *hash;
                     list_item = list_item.style(Style::default().bg(Color::DarkGray));
                 }
 
@@ -202,12 +210,12 @@ impl Panel for OverviewPanel {
                         return UpdateResult::Save;
                     }
                     NormalCommand::ToggleTaskState => {
-                        let mut task = tasks.get_mut(y).unwrap();
+                        // let mut task = tasks.get_mut(y).unwrap();
                         // TODO task.state = task.state.next();
                         // TODO task_store.save();
                         match self.context_frame {
                             Some(_) => self.context_frame = None,
-                            None => self.context_frame = Some(Box::new(BadgeSelectPanel { rx: self.rx.clone(), position: (x, y), cursor: 0 }))
+                            None => self.context_frame = Some(Box::new(BadgeSelectPanel { rx: self.rx.clone(), position: (x, y), cursor: 0, task_idx_sort_order: y, selected_hash: 0 }))
                         }
                         //self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }));
                         return UpdateResult::None;
