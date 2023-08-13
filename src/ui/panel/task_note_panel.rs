@@ -3,7 +3,6 @@ use crate::{AppState, UpdateResult};
 use super::Panel;
 
 struct TaskNotePanel {
-
 }
 
 impl Panel for TaskNotePanel {

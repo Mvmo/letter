@@ -1,10 +1,11 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint}, style::{Style, Color}};
-use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, TaskState, command::KeyCommandComposer};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph, Clear, Block, Borders}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
+use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, command::KeyCommandComposer};
 use super::Panel;
 
 // TODO: Bug when first line is just text line and then press enter
+//
 
 #[derive(Clone, Copy)]
 pub enum CursorMovement {
@@ -16,6 +17,41 @@ pub enum CursorMovement {
     WordBackward,
     StartOfLine,
     EndOfLine,
+}
+
+pub struct BadgeSelectPanel {
+    position: (usize, usize)
+}
+
+impl Panel for BadgeSelectPanel {
+    fn get_name(&self) -> String {
+        "badge-select".to_string()
+    }
+
+    fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
+        UpdateResult::None
+    }
+
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, app_state: &AppState) {
+        let list_items: Vec<ListItem> = app_state.task_store.badges
+            .iter()
+            .map(|(_, badge)| {
+                ListItem::new(badge.name.clone())
+            })
+            .collect();
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(ratatui::widgets::BorderType::Plain);
+
+        let list = List::new(list_items)
+            .block(block);
+
+        let rect = Rect::new(self.position.0 as u16, self.position.1 as u16, 30u16, list.len() as u16);
+
+        frame.render_widget(Clear, rect);
+        frame.render_widget(list, rect);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -37,7 +73,8 @@ pub struct OverviewPanel {
     rx: Arc<Mutex<Receiver<KeyEvent>>>,
     text_area: TextArea<AppState, UpdateResult>,
     command_composer: KeyCommandComposer<NormalCommand>,
-    command_rx: Receiver<NormalCommand>
+    command_rx: Receiver<NormalCommand>,
+    context_frame: Option<Box<dyn Panel>>
 }
 
 impl OverviewPanel {
@@ -61,8 +98,7 @@ impl OverviewPanel {
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
-            app_state.task_store.tasks.insert(y + 1, Task { state: TaskState::Todo, text: String::new() });
-            text_area.insert_line(y + 1, String::new());
+            app_state.task_store.create_task_at(y as i64 + 1, Task::default());
             text_area.move_cursor_down();
             return (true, UpdateResult::Save);
         };
@@ -71,17 +107,16 @@ impl OverviewPanel {
             if text_area.lines.len() > app_state.task_store.tasks.len() {
                 let diff = text_area.lines.len() - app_state.task_store.tasks.len();
                 for _ in 0..diff {
-                    app_state.task_store.tasks.push(Task { state: TaskState::Todo, text: String::new() });
+                    app_state.task_store.create_task(Task::default());
                 }
             }
 
             text_area.lines.iter()
                 .enumerate()
                 .for_each(|(idx, line)| {
-                    app_state.task_store.tasks.get_mut(idx).unwrap().text = line.clone();
+                    app_state.task_store.update_task_text(idx as i64, line);
                 });
 
-            app_state.task_store.save();
             return (true, UpdateResult::UpdateMode(AppMode::NORMAL));
         };
 
@@ -90,7 +125,7 @@ impl OverviewPanel {
         self.text_area.on_key(KeyCode::Enter, Box::new(enter_callback));
         self.text_area.on_key(KeyCode::Esc, Box::new(esc_callback));
 
-        let lines: Vec<String> = app_state.task_store.tasks.clone()
+        let lines: Vec<String> = app_state.task_store.tasks
             .iter()
             .map(|task| task.text.clone())
             .collect();
@@ -124,7 +159,7 @@ impl Panel for OverviewPanel {
                         return UpdateResult::Quit;
                     },
                     NormalCommand::Sort => {
-                        tasks.sort_by_key(|task| (*task).state);
+                        // TODO tasks.sort_by_key(|task| (*task).state);
                         return UpdateResult::None;
                     },
                     NormalCommand::DeleteLine => {
@@ -135,14 +170,19 @@ impl Panel for OverviewPanel {
                         return UpdateResult::Save;
                     }
                     NormalCommand::DeleteChar => {
-                        // TODO last char could break everything
+                        // TODO last char could break everything | implement save as well
                         self.text_area.delete_char_at_cursor();
                         return UpdateResult::Save;
                     }
                     NormalCommand::ToggleTaskState => {
                         let mut task = tasks.get_mut(y).unwrap();
-                        task.state = task.state.next();
-                        task_store.save();
+                        // TODO task.state = task.state.next();
+                        // TODO task_store.save();
+                        match self.context_frame {
+                            Some(_) => self.context_frame = None,
+                            None => self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }))
+                        }
+                        //self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }));
                         return UpdateResult::None;
                     }
                     NormalCommand::MoveCursor(movement) => {
@@ -169,7 +209,7 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::InsertNewLineAbove => {
                         let index = y.max(0);
-                        task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string() });
+                        task_store.create_task_at(index as i64, Task::default());
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_to_line_start();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
@@ -177,11 +217,11 @@ impl Panel for OverviewPanel {
                     NormalCommand::InsertNewLineBelow => {
                         let index = y + 1;
                         if task_store.tasks.len() == 0 {
-                            task_store.tasks.insert(index - 1, Task { state: TaskState::Todo, text: "".to_string() });
+                            task_store.create_task_at(index as i64 - 1, Task::default());
                             return UpdateResult::UpdateMode(AppMode::INPUT);
                         }
 
-                        task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string() });
+                        task_store.create_task_at(index as i64, Task::default());
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
@@ -222,8 +262,12 @@ impl Panel for OverviewPanel {
 
         let task_status_list: Vec<ListItem> = app_state.task_store.tasks.iter()
             .map(|task| {
-                ListItem::new(format!("{}", task.state))
+                let badge = app_state.task_store.get_badge(task);
+                let color = badge.map(|badge| badge.color).unwrap_or_else(|| Color::Black);
+                ListItem::new(format!(""))
+                    .style(Style::default().bg(color))
             }).collect();
+
         frame.render_widget(List::new(task_status_list), editor_layout[0]);
         self.text_area.draw(frame, editor_layout[1]); // TODO: Create custom widget for text area
 
@@ -253,12 +297,16 @@ impl Panel for OverviewPanel {
 
         let coordinates_paragraph = Paragraph::new(format!("{y},{x}"));
         frame.render_widget(coordinates_paragraph, status_bar_layout[2]);
+
+        if let Some(context_frame) = &mut self.context_frame {
+            context_frame.draw(frame, app_state)
+        }
     }
 }
 
 impl OverviewPanel {
     pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
         let (command_composer, command_rx) = KeyCommandComposer::new();
-        OverviewPanel { rx, text_area: TextArea::new(vec![]), command_composer, command_rx }
+        OverviewPanel { rx, text_area: TextArea::new(vec![]), command_composer, command_rx, context_frame: None }
     }
 }
