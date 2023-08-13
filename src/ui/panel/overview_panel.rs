@@ -1,10 +1,11 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint}, style::{Style, Color}};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph, Clear, Block, Borders}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
 use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, command::KeyCommandComposer};
 use super::Panel;
 
 // TODO: Bug when first line is just text line and then press enter
+//
 
 #[derive(Clone, Copy)]
 pub enum CursorMovement {
@@ -16,6 +17,41 @@ pub enum CursorMovement {
     WordBackward,
     StartOfLine,
     EndOfLine,
+}
+
+pub struct BadgeSelectPanel {
+    position: (usize, usize)
+}
+
+impl Panel for BadgeSelectPanel {
+    fn get_name(&self) -> String {
+        "badge-select".to_string()
+    }
+
+    fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
+        UpdateResult::None
+    }
+
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, app_state: &AppState) {
+        let list_items: Vec<ListItem> = app_state.task_store.badges
+            .iter()
+            .map(|(_, badge)| {
+                ListItem::new(badge.name.clone())
+            })
+            .collect();
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(ratatui::widgets::BorderType::Plain);
+
+        let list = List::new(list_items)
+            .block(block);
+
+        let rect = Rect::new(self.position.0 as u16, self.position.1 as u16, 30u16, list.len() as u16);
+
+        frame.render_widget(Clear, rect);
+        frame.render_widget(list, rect);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -37,7 +73,8 @@ pub struct OverviewPanel {
     rx: Arc<Mutex<Receiver<KeyEvent>>>,
     text_area: TextArea<AppState, UpdateResult>,
     command_composer: KeyCommandComposer<NormalCommand>,
-    command_rx: Receiver<NormalCommand>
+    command_rx: Receiver<NormalCommand>,
+    context_frame: Option<Box<dyn Panel>>
 }
 
 impl OverviewPanel {
@@ -141,6 +178,11 @@ impl Panel for OverviewPanel {
                         let mut task = tasks.get_mut(y).unwrap();
                         // TODO task.state = task.state.next();
                         // TODO task_store.save();
+                        match self.context_frame {
+                            Some(_) => self.context_frame = None,
+                            None => self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }))
+                        }
+                        //self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }));
                         return UpdateResult::None;
                     }
                     NormalCommand::MoveCursor(movement) => {
@@ -255,12 +297,16 @@ impl Panel for OverviewPanel {
 
         let coordinates_paragraph = Paragraph::new(format!("{y},{x}"));
         frame.render_widget(coordinates_paragraph, status_bar_layout[2]);
+
+        if let Some(context_frame) = &mut self.context_frame {
+            context_frame.draw(frame, app_state)
+        }
     }
 }
 
 impl OverviewPanel {
     pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
         let (command_composer, command_rx) = KeyCommandComposer::new();
-        OverviewPanel { rx, text_area: TextArea::new(vec![]), command_composer, command_rx }
+        OverviewPanel { rx, text_area: TextArea::new(vec![]), command_composer, command_rx, context_frame: None }
     }
 }
