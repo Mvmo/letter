@@ -11,8 +11,8 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 pub struct Badge {
     id: i64,
-    name: String,
-    color: Color
+    pub name: String,
+    pub color: Color
 }
 
 impl Badge {
@@ -103,7 +103,6 @@ impl TaskStore {
                 SELECT 'Done', '#11ed15'
             WHERE (SELECT count(*) FROM badges) = 0;
         "#, ())?;
-
         Ok(())
     }
 
@@ -165,6 +164,8 @@ impl TaskStore {
             WHERE sort_order = ?2
         "#, (text, idx_sort_order))?;
 
+        // TODO update list
+
         Ok(())
     }
 
@@ -175,7 +176,14 @@ impl TaskStore {
             WHERE id = ?2
         "#, (sort_order, task.id))?;
 
+        // TODO update list
+
         Ok(())
+    }
+
+    pub fn get_badge(&self, task: &Task) -> Option<&Badge> {
+        let badge_id = &task.badge_id?;
+        self.badges.get(badge_id)
     }
 
 }

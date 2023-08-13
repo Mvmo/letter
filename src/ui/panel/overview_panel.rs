@@ -232,7 +232,10 @@ impl Panel for OverviewPanel {
 
         let task_status_list: Vec<ListItem> = app_state.task_store.tasks.iter()
             .map(|task| {
-                ListItem::new(format!("{}", task.badge_id.unwrap_or(-1)))
+                let badge = app_state.task_store.get_badge(task);
+                let color = badge.map(|badge| badge.color).unwrap_or_else(|| Color::Black);
+                ListItem::new(format!(""))
+                    .style(Style::default().bg(color))
             }).collect();
         frame.render_widget(List::new(task_status_list), editor_layout[0]);
         self.text_area.draw(frame, editor_layout[1]); // TODO: Create custom widget for text area
