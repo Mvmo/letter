@@ -158,12 +158,22 @@ impl TaskStore {
         Ok(())
     }
 
-    pub fn update_task(&mut self, task: &Task, sort_order: i64) -> Result<()> {
+    pub fn update_task_text(&mut self, idx_sort_order: i64, text: &str) -> Result<()> {
         self.connection.execute(r#"
             UPDATE tasks
-                SET text = ?1, badge_id = ?2, sort_order = ?3
-            WHERE id = ?4
-        "#, (&task.text, task.badge_id, sort_order, task.id))?;
+                SET text = ?1
+            WHERE sort_order = ?2
+        "#, (text, idx_sort_order))?;
+
+        Ok(())
+    }
+
+    pub fn update_task_order(&mut self, task: &Task, sort_order: i64) -> Result<()> {
+        self.connection.execute(r#"
+            UPDATE tasks
+                SET sort_order = ?1
+            WHERE id = ?2
+        "#, (sort_order, task.id))?;
 
         Ok(())
     }
