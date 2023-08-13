@@ -158,6 +158,16 @@ impl TaskStore {
         Ok(())
     }
 
+    pub fn update_task(&mut self, task: &Task, sort_order: i64) -> Result<()> {
+        self.connection.execute(r#"
+            UPDATE tasks
+                SET text = ?1, badge_id = ?2, sort_order = ?3
+            WHERE id = ?4
+        "#, (&task.text, task.badge_id, sort_order, task.id))?;
+
+        Ok(())
+    }
+
 }
 
 fn create_database_connection() -> Result<Connection> {

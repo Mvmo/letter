@@ -61,9 +61,9 @@ impl OverviewPanel {
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
-            // TODO app_state.task_store.tasks.insert(y + 1, Task { state: TaskState::Todo, text: String::new(), badge: None });
-            app_state.task_store.insert_task(y as i64 + 1, &Task::default());
-            text_area.insert_line(y + 1, String::new());
+            // app_state.task_store.tasks.insert(y + 1, Task { state: TaskState::Todo, text: String::new(), badge: None });
+            app_state.task_store.create_task_at(y as i64 + 1, Task::default()); // TODO handle
+                                                                                // error
             text_area.move_cursor_down();
             return (true, UpdateResult::Save);
         };
@@ -72,7 +72,8 @@ impl OverviewPanel {
             if text_area.lines.len() > app_state.task_store.tasks.len() {
                 let diff = text_area.lines.len() - app_state.task_store.tasks.len();
                 for _ in 0..diff {
-                    // TODO app_state.task_store.tasks.push(Task { state: TaskState::Todo, text: String::new(), badge: None });
+                    app_state.task_store.create_task(Task::default()); // TODO handle error
+                    // app_state.task_store.tasks.push(Task { state: TaskState::Todo, text: String::new(), badge: None });
                 }
             }
 
@@ -82,7 +83,8 @@ impl OverviewPanel {
                     app_state.task_store.tasks.get_mut(idx).unwrap().text = line.clone();
                 });
 
-            // TODO app_state.task_store.save();
+            // TODO app_state.task_store.save(); ??
+
             return (true, UpdateResult::UpdateMode(AppMode::NORMAL));
         };
 
@@ -170,7 +172,9 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::InsertNewLineAbove => {
                         let index = y.max(0);
-                        // TODO task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
+                        // task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
+                        task_store.create_task_at(index as i64, Task::default()); // TODO handle
+                                                                                  // error
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_to_line_start();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
@@ -178,11 +182,16 @@ impl Panel for OverviewPanel {
                     NormalCommand::InsertNewLineBelow => {
                         let index = y + 1;
                         if task_store.tasks.len() == 0 {
-                            // TODO task_store.tasks.insert(index - 1, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
+                            // task_store.tasks.insert(index - 1, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
+                            task_store.create_task_at(index as i64 - 1, Task::default()); // TODO
+                                                                                          // handle
+                                                                                          // error
                             return UpdateResult::UpdateMode(AppMode::INPUT);
                         }
 
                         // TODO task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
+                        task_store.create_task_at(index as i64, Task::default()); // TODO handle
+                                                                                  // error
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
