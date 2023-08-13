@@ -169,6 +169,16 @@ impl TaskStore {
         Ok(())
     }
 
+    pub fn update_task_badge(&mut self, idx_sort_order: i64, badge: &Badge) -> Result<()> {
+        self.connection.execute(r#"
+            UPDATE tasks
+                SET badge_id = ?1
+            WHERE id = ?2
+        "#, (badge.id, idx_sort_order))?;
+
+        Ok(())
+    }
+
     pub fn update_task_order(&mut self, task: &Task, sort_order: i64) -> Result<()> {
         self.connection.execute(r#"
             UPDATE tasks

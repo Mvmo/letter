@@ -61,9 +61,7 @@ impl OverviewPanel {
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
-            // app_state.task_store.tasks.insert(y + 1, Task { state: TaskState::Todo, text: String::new(), badge: None });
-            app_state.task_store.create_task_at(y as i64 + 1, Task::default()); // TODO handle
-                                                                                // error
+            app_state.task_store.create_task_at(y as i64 + 1, Task::default());
             text_area.move_cursor_down();
             return (true, UpdateResult::Save);
         };
@@ -72,18 +70,15 @@ impl OverviewPanel {
             if text_area.lines.len() > app_state.task_store.tasks.len() {
                 let diff = text_area.lines.len() - app_state.task_store.tasks.len();
                 for _ in 0..diff {
-                    app_state.task_store.create_task(Task::default()); // TODO handle error
-                    // app_state.task_store.tasks.push(Task { state: TaskState::Todo, text: String::new(), badge: None });
+                    app_state.task_store.create_task(Task::default());
                 }
             }
 
             text_area.lines.iter()
                 .enumerate()
                 .for_each(|(idx, line)| {
-                    app_state.task_store.update_task_text(idx as i64, line); // TODO handle error
+                    app_state.task_store.update_task_text(idx as i64, line);
                 });
-
-            // TODO app_state.task_store.save(); ??
 
             return (true, UpdateResult::UpdateMode(AppMode::NORMAL));
         };
@@ -138,7 +133,7 @@ impl Panel for OverviewPanel {
                         return UpdateResult::Save;
                     }
                     NormalCommand::DeleteChar => {
-                        // TODO last char could break everything
+                        // TODO last char could break everything | implement save as well
                         self.text_area.delete_char_at_cursor();
                         return UpdateResult::Save;
                     }
@@ -172,9 +167,7 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::InsertNewLineAbove => {
                         let index = y.max(0);
-                        // task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
-                        task_store.create_task_at(index as i64, Task::default()); // TODO handle
-                                                                                  // error
+                        task_store.create_task_at(index as i64, Task::default());
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_to_line_start();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
@@ -182,16 +175,11 @@ impl Panel for OverviewPanel {
                     NormalCommand::InsertNewLineBelow => {
                         let index = y + 1;
                         if task_store.tasks.len() == 0 {
-                            // task_store.tasks.insert(index - 1, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
-                            task_store.create_task_at(index as i64 - 1, Task::default()); // TODO
-                                                                                          // handle
-                                                                                          // error
+                            task_store.create_task_at(index as i64 - 1, Task::default());
                             return UpdateResult::UpdateMode(AppMode::INPUT);
                         }
 
-                        // TODO task_store.tasks.insert(index, Task { state: TaskState::Todo, text: "".to_string(), badge: None });
-                        task_store.create_task_at(index as i64, Task::default()); // TODO handle
-                                                                                  // error
+                        task_store.create_task_at(index as i64, Task::default());
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
@@ -237,6 +225,7 @@ impl Panel for OverviewPanel {
                 ListItem::new(format!(""))
                     .style(Style::default().bg(color))
             }).collect();
+
         frame.render_widget(List::new(task_status_list), editor_layout[0]);
         self.text_area.draw(frame, editor_layout[1]); // TODO: Create custom widget for text area
 
