@@ -210,7 +210,7 @@ fn main() -> Result<()> {
     let connection = create_database_connection()?;
     let mut task_store = TaskStore::new(connection);
     task_store.fetch_data()?;
-    task_store.create_task(Task { id: None, text: "hallo welt".to_string(), badge_id: Some(1) })?;
+    // task_store.create_task(Task { id: None, text: "hallo welt".to_string(), badge_id: Some(1) })?;
 
     start_ui(task_store)?;
 

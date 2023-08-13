@@ -1,6 +1,6 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph, Clear, Block, Borders}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph, Clear}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color, Stylize}};
 use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, command::KeyCommandComposer};
 use super::Panel;
 
@@ -20,7 +20,9 @@ pub enum CursorMovement {
 }
 
 pub struct BadgeSelectPanel {
-    position: (usize, usize)
+    rx: Arc<Mutex<Receiver<KeyEvent>>>,
+    position: (usize, usize),
+    cursor: usize
 }
 
 impl Panel for BadgeSelectPanel {
@@ -29,25 +31,40 @@ impl Panel for BadgeSelectPanel {
     }
 
     fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
+        let rx = self.rx.lock().unwrap();
+        if let Ok(key_event) = rx.try_recv() {
+            match key_event.code {
+                KeyCode::Char('j') => self.cursor += 1,
+                KeyCode::Char('k') => self.cursor -= 1,
+                KeyCode::Esc => return UpdateResult::Quit,
+                _ => {}
+            }
+        }
         UpdateResult::None
     }
 
     fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, app_state: &AppState) {
         let list_items: Vec<ListItem> = app_state.task_store.badges
             .iter()
-            .map(|(_, badge)| {
-                ListItem::new(badge.name.clone())
+            .enumerate()
+            .map(|(idx, (_, badge))| {
+                let mut list_item = ListItem::new(badge.name.clone());
+                if idx == self.cursor {
+                    list_item = list_item.style(Style::default().bg(Color::DarkGray));
+                }
+
+                list_item
             })
             .collect();
 
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_type(ratatui::widgets::BorderType::Plain);
+        let width = list_items.iter()
+            .map(|li| li.width())
+            .max()
+            .unwrap_or(0);
 
-        let list = List::new(list_items)
-            .block(block);
-
-        let rect = Rect::new(self.position.0 as u16, self.position.1 as u16, 30u16, list.len() as u16);
+        let list = List::new(list_items).style(Style::default().bg(Color::Black));
+        let (x, y) = self.position;
+        let rect = Rect::new(x as u16, y as u16 + 1, width as u16, list.len() as u16);
 
         frame.render_widget(Clear, rect);
         frame.render_widget(list, rect);
@@ -144,6 +161,16 @@ impl Panel for OverviewPanel {
         let task_store = &mut state.task_store;
         let tasks = &mut task_store.tasks;
 
+        if let Some(context_frame) = &mut self.context_frame {
+            let update_result = context_frame.update(state);
+            if let UpdateResult::Quit = update_result {
+                self.context_frame = None;
+                return UpdateResult::None;
+            }
+
+            return update_result;
+        }
+
         if let AppMode::INPUT = state.mode {
             return self.text_area.update(self.rx.clone(), state).unwrap_or(UpdateResult::None);
         }
@@ -180,7 +207,7 @@ impl Panel for OverviewPanel {
                         // TODO task_store.save();
                         match self.context_frame {
                             Some(_) => self.context_frame = None,
-                            None => self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }))
+                            None => self.context_frame = Some(Box::new(BadgeSelectPanel { rx: self.rx.clone(), position: (x, y), cursor: 0 }))
                         }
                         //self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }));
                         return UpdateResult::None;
