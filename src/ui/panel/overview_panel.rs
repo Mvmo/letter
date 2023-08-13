@@ -80,7 +80,7 @@ impl OverviewPanel {
             text_area.lines.iter()
                 .enumerate()
                 .for_each(|(idx, line)| {
-                    app_state.task_store.tasks.get_mut(idx).unwrap().text = line.clone();
+                    app_state.task_store.update_task_text(idx as i64, line); // TODO handle error
                 });
 
             // TODO app_state.task_store.save(); ??
