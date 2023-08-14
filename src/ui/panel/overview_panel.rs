@@ -55,7 +55,8 @@ impl Panel for BadgeSelectPanel {
             .iter()
             .enumerate()
             .map(|(idx, (hash, badge))| {
-                let mut list_item = ListItem::new(badge.name.clone());
+                let mut list_item = ListItem::new(badge.name.clone())
+                    .style(Style::default().bg(badge.color));
                 if idx == self.cursor {
                     self.selected_hash = *hash;
                     list_item = list_item.style(Style::default().bg(Color::DarkGray));
