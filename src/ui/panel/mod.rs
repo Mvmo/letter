@@ -6,6 +6,7 @@ use crate::{UpdateResult, AppState};
 
 pub mod overview_panel;
 pub mod task_note_panel;
+pub mod badge_select_panel;
 
 pub trait Panel {
     fn get_name(&self) -> String;

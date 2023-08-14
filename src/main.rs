@@ -176,7 +176,9 @@ impl TaskStore {
             WHERE sort_order = ?2
         "#, (badge_id, idx_sort_order))?;
 
-        self.fetch_data();
+        //self.fetch_data();
+        let task = self.tasks.get_mut(idx_sort_order as usize).expect("couldn't find task");
+        task.badge_id = Some(badge_id);
 
         Ok(())
     }

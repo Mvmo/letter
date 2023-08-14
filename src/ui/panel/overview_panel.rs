@@ -2,7 +2,7 @@ use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph, Clear}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color, Stylize}};
 use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, command::KeyCommandComposer};
-use super::Panel;
+use super::{Panel, badge_select_panel::BadgeSelectPanel};
 
 // TODO: Bug when first line is just text line and then press enter
 //
@@ -17,67 +17,6 @@ pub enum CursorMovement {
     WordBackward,
     StartOfLine,
     EndOfLine,
-}
-
-pub struct BadgeSelectPanel {
-    rx: Arc<Mutex<Receiver<KeyEvent>>>,
-    position: (usize, usize),
-    cursor: usize,
-    task_idx_sort_order: usize,
-    selected_hash: i64
-}
-
-impl Panel for BadgeSelectPanel {
-    fn get_name(&self) -> String {
-        "badge-select".to_string()
-    }
-
-    fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
-        let rx = self.rx.lock().unwrap();
-        if let Ok(key_event) = rx.try_recv() {
-            match key_event.code {
-                KeyCode::Char('j') => self.cursor += 1,
-                KeyCode::Char('k') => self.cursor -= 1,
-                KeyCode::Enter => {
-                    let badge = app_state.task_store.badges.get(&self.selected_hash);
-                    app_state.task_store.update_task_badge(self.task_idx_sort_order as i64, self.selected_hash);
-                    return UpdateResult::Quit;
-                }
-                KeyCode::Esc => return UpdateResult::Quit,
-                _ => {}
-            }
-        }
-        UpdateResult::None
-    }
-
-    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, app_state: &AppState) {
-        let list_items: Vec<ListItem> = app_state.task_store.badges
-            .iter()
-            .enumerate()
-            .map(|(idx, (hash, badge))| {
-                let mut list_item = ListItem::new(badge.name.clone())
-                    .style(Style::default().bg(badge.color));
-                if idx == self.cursor {
-                    self.selected_hash = *hash;
-                    list_item = list_item.style(Style::default().bg(Color::DarkGray));
-                }
-
-                list_item
-            })
-            .collect();
-
-        let width = list_items.iter()
-            .map(|li| li.width())
-            .max()
-            .unwrap_or(0);
-
-        let list = List::new(list_items).style(Style::default().bg(Color::Black));
-        let (x, y) = self.position;
-        let rect = Rect::new(x as u16, y as u16 + 1, width as u16, list.len() as u16);
-
-        frame.render_widget(Clear, rect);
-        frame.render_widget(list, rect);
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -216,7 +155,7 @@ impl Panel for OverviewPanel {
                         // TODO task_store.save();
                         match self.context_frame {
                             Some(_) => self.context_frame = None,
-                            None => self.context_frame = Some(Box::new(BadgeSelectPanel { rx: self.rx.clone(), position: (x, y), cursor: 0, task_idx_sort_order: y, selected_hash: 0 }))
+                            None => self.context_frame = Some(Box::new(BadgeSelectPanel::new(state, y, (x, y), self.rx.clone())))
                         }
                         //self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }));
                         return UpdateResult::None;
