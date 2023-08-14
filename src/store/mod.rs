@@ -30,7 +30,8 @@ impl Badge {
 pub struct Task {
     pub id: Option<i64>,
     pub text: String,
-    pub badge_id: Option<i64>
+    pub badge_id: Option<i64>,
+    pub note_id: Option<i64>
 }
 
 impl Task {
@@ -38,11 +39,13 @@ impl Task {
         let task_id = row.get("id")?;
         let task_text = row.get("text")?;
         let task_badge_id = row.get("badge_id")?;
+        let task_note_id = row.get("note_id")?;
 
         Ok(Self {
             id: Some(task_id),
             text: task_text,
-            badge_id: task_badge_id
+            badge_id: task_badge_id,
+            note_id: task_note_id,
         })
     }
 }
@@ -52,7 +55,8 @@ impl Default for Task {
         Self {
             id: None,
             text: String::new(),
-            badge_id: None
+            badge_id: None,
+            note_id: None
         }
     }
 }
@@ -108,13 +112,20 @@ impl TaskStore {
                 color TEXT                NOT NULL /* ansi color format */
             );
 
+            CREATE TABLE IF NOT EXISTS notes (
+                id   INTEGER PRIMARY KEY NOT NULL,
+                text TEXT                NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS tasks (
                 id         INTEGER PRIMARY KEY NOT NULL,
                 text       TEXT                NOT NULL,
                 badge_id   INTEGER,
+                note_id    INTEGER,
                 sort_order INTEGER NOT NULL,
 
-                FOREIGN KEY (badge_id) REFERENCES badges (id)
+                FOREIGN KEY (badge_id) REFERENCES badges (id),
+                FOREIGN KEY (note_id) REFERENCES notes (id)
             );
 
             INSERT INTO badges (name, color)
