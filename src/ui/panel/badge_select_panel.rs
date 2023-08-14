@@ -1,7 +1,7 @@
-use std::{io::Stdout, sync::{Arc, Mutex, mpsc::Receiver}, collections::HashMap};
+use std::{io::Stdout, sync::{Arc, Mutex, mpsc::Receiver}};
 
 use crossterm::event::{KeyEvent, KeyCode};
-use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::{ListItem, List, Clear}, style::{Style, Color, Stylize, Modifier}};
+use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::{ListItem, List, Clear}, style::{Style, Color}};
 
 use crate::{AppState, UpdateResult};
 

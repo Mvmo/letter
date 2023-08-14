@@ -1,7 +1,7 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph, Clear}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color, Stylize}};
-use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, Task, command::KeyCommandComposer};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint}, style::{Style, Color}};
+use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, command::KeyCommandComposer, store::Task};
 use super::{Panel, badge_select_panel::BadgeSelectPanel};
 
 // TODO: Bug when first line is just text line and then press enter
