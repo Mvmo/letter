@@ -60,6 +60,7 @@ impl Default for Task {
 pub struct TaskStore {
     connection: Connection,
 
+    // TODO make private
     pub badges: HashMap<i64, Badge>,
     pub tasks: Vec<Task>
 }
@@ -145,9 +146,10 @@ impl TaskStore {
         Ok(())
     }
 
-    pub fn delete_task(&mut self, task: &Task) -> Result<()> {
-        self.connection.execute("DELETE FROM tasks WHERE id = ?1", (task.id,))?;
-        self.tasks.retain(|t| t != task);
+    pub fn delete_task(&mut self, idx_sort_order: i64) -> Result<()> {
+        self.connection.execute("DELETE FROM tasks WHERE sort_order = ?1", (idx_sort_order,))?;
+        self.connection.execute("UPDATE tasks SET sort_order = sort_order - 1 WHERE sort_order >= ?1", (idx_sort_order,))?;
+        self.tasks.remove(idx_sort_order as usize);
 
         Ok(())
     }

@@ -140,7 +140,8 @@ impl Panel for OverviewPanel {
                     NormalCommand::DeleteLine => {
                         self.text_area.delete_current_line();
                         if task_store.tasks.len() > y {
-                            task_store.tasks.remove(y);
+                            task_store.delete_task(y as i64);
+                            //task_store.tasks.remove(y);
                         }
                         return UpdateResult::Save;
                     }
