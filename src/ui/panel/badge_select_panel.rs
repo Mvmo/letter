@@ -1,7 +1,7 @@
 use std::{io::Stdout, sync::{Arc, Mutex, mpsc::Receiver}, collections::HashMap};
 
 use crossterm::event::{KeyEvent, KeyCode};
-use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::{ListItem, List, Clear}, style::{Style, Color}};
+use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::{ListItem, List, Clear}, style::{Style, Color, Stylize, Modifier}};
 
 use crate::{AppState, UpdateResult};
 
@@ -24,14 +24,27 @@ impl Panel for BadgeSelectPanel {
         let rx = self.rx.lock().unwrap();
         if let Ok(key_event) = rx.try_recv() {
             match key_event.code {
-                KeyCode::Char('j') => self.cursor += 1,
-                KeyCode::Char('k') => self.cursor -= 1,
+                KeyCode::Char('j') => {
+                    if self.cursor == self.values.len() - 1 {
+                        self.cursor = 0;
+                    } else {
+                        self.cursor += 1;
+                    }
+                },
+                KeyCode::Char('k') => {
+                    if self.cursor == 0 {
+                        self.cursor = self.values.len() - 1;
+                    } else {
+                        self.cursor -= 1;
+                    }
+                }
                 KeyCode::Enter => {
                     let (badge_idx, _) = self.values.get(self.cursor as usize).expect("something is really wrong :(");
                     let badge = app_state.task_store.badges.get(badge_idx).expect("even more wrong");
                     app_state.task_store.update_task_badge(self.task_idx_sort_order as i64, badge.id);
                     return UpdateResult::Quit;
                 }
+                KeyCode::Char('t') => return UpdateResult::Quit,
                 KeyCode::Esc => return UpdateResult::Quit,
                 _ => {}
             }
@@ -48,7 +61,6 @@ impl Panel for BadgeSelectPanel {
                 if idx == self.cursor {
                     list_item = list_item.style(Style::default().bg(Color::DarkGray));
                 }
-
                 list_item
             })
             .collect();
