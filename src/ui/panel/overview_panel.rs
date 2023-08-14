@@ -228,23 +228,31 @@ impl Panel for OverviewPanel {
                 Constraint::Length(3)
             ]).split(frame.size());
 
+        // TODO - move this calc somewhere else
+        let widest_badge = app_state.task_store.badges.iter()
+            .map(|(_, badge)| badge.name.len())
+            .max()
+            .unwrap_or(0) as u16;
+
         let editor_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(2),
-                Constraint::Length(full_width - 2)
+                Constraint::Length(widest_badge),
+                Constraint::Length(1),
+                Constraint::Length(full_width - widest_badge)
             ]).split(overview_layout[0]);
 
         let task_status_list: Vec<ListItem> = app_state.task_store.tasks.iter()
             .map(|task| {
                 let badge = app_state.task_store.get_badge(task);
                 let color = badge.map(|badge| badge.color).unwrap_or_else(|| Color::Black);
-                ListItem::new(format!(""))
+                let name = badge.map(|badge| badge.name.clone()).unwrap_or_else(|| String::new());
+                ListItem::new(format!("{}", name))
                     .style(Style::default().bg(color))
             }).collect();
 
         frame.render_widget(List::new(task_status_list), editor_layout[0]);
-        self.text_area.draw(frame, editor_layout[1]); // TODO: Create custom widget for text area
+        self.text_area.draw(frame, editor_layout[2]); // TODO: Create custom widget for text area
 
         let (x, y) = self.text_area.get_cursor();
         let status_bar_v_layout = Layout::default()
