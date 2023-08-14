@@ -57,6 +57,32 @@ impl Default for Task {
     }
 }
 
+pub struct Note {
+    pub id: Option<i64>,
+    pub text: String,
+}
+
+impl Note {
+    fn from_row(row: &Row) -> Result<Self> {
+        let note_id = row.get("id")?;
+        let note_text = row.get("text")?;
+
+        Ok(Self {
+            id: Some(note_id),
+            text: note_text,
+        })
+    }
+}
+
+impl Default for Note {
+    fn default() -> Self {
+        Self {
+            id: None,
+            text: String::new(),
+        }
+    }
+}
+
 pub struct TaskStore {
     connection: Connection,
 
