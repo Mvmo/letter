@@ -244,8 +244,6 @@ impl<S, R> TextArea<S, R> {
             if self.lines.len() == 0 {
                 self.lines.insert(0, "".to_string());
                 self.move_cursor_to_line_start();
-            } else {
-                self.move_cursor_down();
             }
 
             return;
