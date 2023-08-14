@@ -39,7 +39,8 @@ pub struct OverviewPanel {
     text_area: TextArea<AppState, UpdateResult>,
     command_composer: KeyCommandComposer<NormalCommand>,
     command_rx: Receiver<NormalCommand>,
-    context_frame: Option<Box<dyn Panel>>
+    context_frame: Option<Box<dyn Panel>>,
+    task_note_panel: Option<Box<dyn Panel>>
 }
 
 impl OverviewPanel {
@@ -291,6 +292,6 @@ impl Panel for OverviewPanel {
 impl OverviewPanel {
     pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
         let (command_composer, command_rx) = KeyCommandComposer::new();
-        OverviewPanel { rx, text_area: TextArea::new(vec![]), command_composer, command_rx, context_frame: None }
+        OverviewPanel { rx, text_area: TextArea::new(vec![]), command_composer, command_rx, context_frame: None, task_note_panel: None }
     }
 }

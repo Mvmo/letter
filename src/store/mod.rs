@@ -92,6 +92,7 @@ pub struct TaskStore {
 
     // TODO make private
     pub badges: HashMap<i64, Badge>,
+    pub notes: HashMap<i64, Note>,
     pub tasks: Vec<Task>
 }
 
@@ -100,6 +101,7 @@ impl TaskStore {
         TaskStore {
             connection,
             badges: HashMap::new(),
+            notes: HashMap::new(),
             tasks: vec![]
         }
     }
@@ -149,6 +151,15 @@ impl TaskStore {
             })?
             .filter_map(|badge| badge.ok())
             .map(|badge| (badge.id, badge))
+            .collect();
+
+        self.notes = self.connection.prepare("SELECT * FROM notes")?
+            .query_map([], |row| {
+                Note::from_row(row)
+                    .map_err(|_| rusqlite::Error::ExecuteReturnedResults)
+            })?
+            .filter_map(|note| note.ok())
+            .map(|note| (note.id.unwrap(), note))
             .collect();
 
         self.tasks = self.connection.prepare("SELECT * FROM tasks ORDER BY sort_order")?
@@ -232,6 +243,10 @@ impl TaskStore {
     pub fn get_badge(&self, task: &Task) -> Option<&Badge> {
         let badge_id = &task.badge_id?;
         self.badges.get(badge_id)
+    }
+
+    pub fn get_note_by_id(&self, note_id: i64) -> Option<&Note> {
+        self.notes.get(&note_id)
     }
 
 }
