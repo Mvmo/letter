@@ -2,7 +2,7 @@ use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
 use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, command::KeyCommandComposer, store::Task};
-use super::{Panel, badge_select_panel::BadgeSelectPanel};
+use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNotePanel};
 
 // TODO: Bug when first line is just text line and then press enter
 //
@@ -30,6 +30,7 @@ pub enum NormalCommand {
     InsertNewLineAbove,
     DeleteLine,
     ToggleTaskState,
+    OpenTaskNotes,
     DeleteChar,
     MoveCursor(CursorMovement),
 }
@@ -61,6 +62,7 @@ impl OverviewPanel {
         self.command_composer.register_keycommand(vec![KeyCode::Char('O')], NormalCommand::InsertNewLineAbove);
         self.command_composer.register_keycommand(vec![KeyCode::Char('o')], NormalCommand::InsertNewLineBelow);
         self.command_composer.register_keycommand(vec![KeyCode::Char('x')], NormalCommand::DeleteChar);
+        self.command_composer.register_keycommand(vec![KeyCode::Enter], NormalCommand::OpenTaskNotes);
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
@@ -114,6 +116,16 @@ impl Panel for OverviewPanel {
             let update_result = context_frame.update(state);
             if let UpdateResult::Quit = update_result {
                 self.context_frame = None;
+                return UpdateResult::None;
+            }
+
+            return update_result;
+        }
+
+        if let Some(note_panel) = &mut self.task_note_panel {
+            let update_result = note_panel.update(state);
+            if let UpdateResult::Quit = update_result {
+                self.task_note_panel = None;
                 return UpdateResult::None;
             }
 
@@ -202,6 +214,12 @@ impl Panel for OverviewPanel {
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
                         return UpdateResult::UpdateMode(AppMode::INPUT);
+                    },
+                    NormalCommand::OpenTaskNotes => {
+                        // TODO error handling
+                        let note_id = task_store.get_or_create_note_id(y as i64).unwrap();
+                        let note_panel = TaskNotePanel::new(state, self.rx.clone(), note_id);
+                        self.task_note_panel = Some(Box::new(note_panel));
                     }
                 }
             }
@@ -284,7 +302,11 @@ impl Panel for OverviewPanel {
         frame.render_widget(coordinates_paragraph, status_bar_layout[2]);
 
         if let Some(context_frame) = &mut self.context_frame {
-            context_frame.draw(frame, area, app_state)
+            context_frame.draw(frame, area, app_state);
+        }
+
+        if let Some(note_panel) = &mut self.task_note_panel {
+            note_panel.draw(frame, area, app_state);
         }
     }
 }

@@ -67,6 +67,10 @@ pub struct Note {
 }
 
 impl Note {
+    fn new(id: Option<i64>, text: String) -> Self {
+        Self { id, text }
+    }
+
     fn from_row(row: &Row) -> Result<Self> {
         let note_id = row.get("id")?;
         let note_text = row.get("text")?;
@@ -192,6 +196,26 @@ impl TaskStore {
         self.create_task_at(index, task)?;
 
         Ok(())
+    }
+
+    pub fn get_or_create_note_id(&mut self, idx_sort_order: i64) -> Result<i64> {
+        let task = self.tasks.get(idx_sort_order as usize).unwrap();
+        match task.note_id {
+            Some(note_id) => return Ok(note_id),
+            None => {
+                let id: i64 = self.connection.prepare("INSERT INTO notes (text) VALUES ('') RETURNING ID")?
+                    .query_map([], |row| {
+                        row.get::<&str, i64>("id")
+                    })?
+                    .filter_map(|id| id.ok())
+                    .sum(); // TODO works but maybe there's a better way
+
+                let note = Note::new(Some(id), String::new());
+                self.notes.insert(id, note);
+
+                Ok(id)
+            }
+        }
     }
 
     pub fn delete_task(&mut self, idx_sort_order: i64) -> Result<()> {
