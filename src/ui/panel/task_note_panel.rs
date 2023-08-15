@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex, mpsc::Receiver};
 
 use crossterm::event::{KeyEvent, KeyCode};
-use ratatui::prelude::Rect;
+use ratatui::{prelude::Rect, widgets::{Block, Borders, BorderType}};
 
 use crate::{AppState, UpdateResult, ui::textarea::TextArea, AppMode};
 
@@ -39,12 +39,20 @@ impl Panel for TaskNotePanel {
         return UpdateResult::None
     }
 
-    fn draw(&mut self, frame: &mut ratatui::Frame<ratatui::prelude::CrosstermBackend<std::io::Stdout>>, area: Rect, app_state: &AppState) {
+    // TODO use rect
+    fn draw(&mut self, frame: &mut ratatui::Frame<ratatui::prelude::CrosstermBackend<std::io::Stdout>>, _: Rect, _: &AppState) {
         let mut r = frame.size();
         r.x = r.width / 2;
         r.width = r.width / 2;
 
-        self.text_area.draw(frame, r);
+        let block = Block::new()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Plain)
+            .title("Notes");
+
+        let inner = block.inner(r);
+        frame.render_widget(block, r);
+        self.text_area.draw(frame, inner);
     }
 }
 
@@ -56,9 +64,10 @@ impl TaskNotePanel {
             .collect();
 
         let mut text_area = TextArea::new(lines);
-        let esc_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
+        let esc_callback = |_: &mut TextArea<AppState, UpdateResult>, _: &mut AppState| {
             return (true, UpdateResult::UpdateMode(AppMode::NORMAL));
         };
+
         text_area.on_key(KeyCode::Esc, Box::new(esc_callback));
 
         Self {
