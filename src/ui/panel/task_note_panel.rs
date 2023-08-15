@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex, mpsc::Receiver};
 
 use crossterm::event::{KeyEvent, KeyCode};
-use ratatui::{prelude::Rect, widgets::{Block, Borders, BorderType}};
+use ratatui::{prelude::Rect, widgets::{Block, Borders, BorderType, Clear}};
 
 use crate::{AppState, UpdateResult, ui::textarea::TextArea, AppMode};
 
@@ -54,6 +54,7 @@ impl Panel for TaskNotePanel {
             .title("Notes");
 
         let inner = block.inner(r);
+        frame.render_widget(Clear, r);
         frame.render_widget(block, r);
         self.text_area.draw(frame, inner);
     }
