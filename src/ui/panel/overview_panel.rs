@@ -1,6 +1,6 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint}, style::{Style, Color}};
+use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
 use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, command::KeyCommandComposer, store::Task};
 use super::{Panel, badge_select_panel::BadgeSelectPanel};
 
@@ -219,7 +219,7 @@ impl Panel for OverviewPanel {
         UpdateResult::None
     }
 
-    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, app_state: &AppState) {
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, area: Rect, app_state: &AppState) {
         let full_width = frame.size().width;
         let full_height = frame.size().height;
 
@@ -284,7 +284,7 @@ impl Panel for OverviewPanel {
         frame.render_widget(coordinates_paragraph, status_bar_layout[2]);
 
         if let Some(context_frame) = &mut self.context_frame {
-            context_frame.draw(frame, app_state)
+            context_frame.draw(frame, area, app_state)
         }
     }
 }

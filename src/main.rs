@@ -72,7 +72,7 @@ fn draw_ui(frame: &mut Frame<CrosstermBackend<Stdout>>, panel_stack: &mut [Box<d
     panel_stack.iter_mut()
         .rev()
         .for_each(|panel| {
-            panel.draw(frame, state)
+            panel.draw(frame, frame.size(), state)
         });
 }
 

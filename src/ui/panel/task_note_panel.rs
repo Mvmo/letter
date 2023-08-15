@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex, mpsc::Receiver};
 
 use crossterm::event::KeyEvent;
+use ratatui::prelude::Rect;
 
 use crate::{AppState, UpdateResult, ui::textarea::TextArea, AppMode};
 
@@ -20,7 +21,7 @@ impl Panel for TaskNotePanel {
     fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
         match app_state.mode {
             AppMode::INPUT => {
-                self.text_area.update(self.rx, app_state);
+                self.text_area.update(self.rx.clone(), app_state);
             },
             AppMode::NORMAL => {
 
@@ -29,7 +30,7 @@ impl Panel for TaskNotePanel {
         return UpdateResult::None
     }
 
-    fn draw(&mut self, frame: &mut ratatui::Frame<ratatui::prelude::CrosstermBackend<std::io::Stdout>>, app_state: &AppState) {
+    fn draw(&mut self, frame: &mut ratatui::Frame<ratatui::prelude::CrosstermBackend<std::io::Stdout>>, area: Rect, app_state: &AppState) {
         let mut r = frame.size();
         r.x = r.width / 2;
         r.width = r.width / 2;

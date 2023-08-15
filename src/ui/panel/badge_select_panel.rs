@@ -52,7 +52,7 @@ impl Panel for BadgeSelectPanel {
         UpdateResult::None
     }
 
-    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, app_state: &AppState) {
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, area: Rect, app_state: &AppState) {
         let list_items: Vec<ListItem> = self.values
             .iter()
             .enumerate()
