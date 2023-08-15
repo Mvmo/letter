@@ -269,6 +269,19 @@ impl TaskStore {
         Ok(())
     }
 
+    pub fn update_note_text(&mut self, note_idx: i64, text: &str) -> Result<()> {
+        self.connection.execute(r#"
+            UPDATE notes
+                SET text = ?1
+            WHERE id = ?2
+        "#, (text, note_idx))?;
+
+        let note = self.notes.get_mut(&note_idx).unwrap();
+        note.text = String::from(text);
+
+        Ok(())
+    }
+
     pub fn get_badge(&self, task: &Task) -> Option<&Badge> {
         let badge_id = &task.badge_id?;
         self.badges.get(badge_id)

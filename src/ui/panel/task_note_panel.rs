@@ -8,7 +8,7 @@ use crate::{AppState, UpdateResult, ui::textarea::TextArea, AppMode};
 use super::Panel;
 
 pub struct TaskNotePanel {
-    pub task_note_id: i64,
+    pub note_id: i64,
     rx: Arc<Mutex<Receiver<KeyEvent>>>,
     text_area: TextArea<AppState, UpdateResult>,
 }
@@ -30,7 +30,10 @@ impl Panel for TaskNotePanel {
                 if let Ok(key_event) = rx.recv() {
                     match key_event.code {
                         KeyCode::Char('i') => return UpdateResult::UpdateMode(AppMode::INPUT),
-                        KeyCode::Esc => return UpdateResult::Quit,
+                        KeyCode::Esc => {
+                            app_state.task_store.update_note_text(self.note_id, &self.text_area.lines.join("\n"));
+                            return UpdateResult::Quit;
+                        },
                         _ => return UpdateResult::None
                     }
                 }
@@ -57,8 +60,8 @@ impl Panel for TaskNotePanel {
 }
 
 impl TaskNotePanel {
-    pub fn new(app_state: &AppState, rx: Arc<Mutex<Receiver<KeyEvent>>>, task_note_id: i64) -> Self {
-        let lines: Vec<String> = app_state.task_store.get_note_by_id(task_note_id).unwrap()
+    pub fn new(app_state: &AppState, rx: Arc<Mutex<Receiver<KeyEvent>>>, note_id: i64) -> Self {
+        let lines: Vec<String> = app_state.task_store.get_note_by_id(note_id).unwrap()
             .text.lines()
             .map(|s| String::from(s))
             .collect();
@@ -72,7 +75,7 @@ impl TaskNotePanel {
 
         Self {
             rx,
-            task_note_id,
+            note_id,
             text_area
         }
     }
