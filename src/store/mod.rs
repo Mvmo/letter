@@ -210,6 +210,11 @@ impl TaskStore {
                     .filter_map(|id| id.ok())
                     .sum(); // TODO works but maybe there's a better way
 
+                self.connection.execute("UPDATE tasks SET note_id = ?1 WHERE sort_order = ?2", (id, idx_sort_order))?;
+
+                let task = self.tasks.get_mut(idx_sort_order as usize).unwrap();
+                task.note_id = Some(id);
+
                 let note = Note::new(Some(id), String::new());
                 self.notes.insert(id, note);
 
