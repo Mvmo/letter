@@ -110,6 +110,7 @@ impl TaskStore {
         }
     }
 
+    // TODO something is wrong with initial setup
     fn ensure_proper_setup(&mut self) -> Result<()> {
         self.connection.execute(r#"
             CREATE TABLE IF NOT EXISTS badges (
@@ -135,11 +136,11 @@ impl TaskStore {
             );
 
             INSERT INTO badges (name, color)
-                SELECT 'TODO', '#e5b562'
+                SELECT 'TODO', '#FF9B9B'
                 UNION ALL
-                SELECT 'In Progress', '#10edbd'
+                SELECT 'In Progress', '#FFD6A5'
                 UNION ALL
-                SELECT 'Done', '#11ed15'
+                SELECT 'Done', '#CBFFA9'
             WHERE (SELECT count(*) FROM badges) = 0;
         "#, ())?;
         Ok(())
