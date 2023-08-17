@@ -2,7 +2,7 @@ use std::io::Stdout;
 
 use ratatui::{Frame, backend::CrosstermBackend, prelude::Rect};
 
-use crate::{UpdateResult, AppState};
+use super::{AppState, UpdateResult};
 
 pub mod overview_panel;
 pub mod task_note_panel;

@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, mpsc::Receiver};
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{prelude::Rect, widgets::{Block, Borders, BorderType, Clear}};
 
-use crate::{AppState, UpdateResult, ui::textarea::TextArea, AppMode};
+use crate::ui::{textarea::TextArea, AppState, UpdateResult, AppMode};
 
 use super::Panel;
 

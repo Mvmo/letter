@@ -1,7 +1,8 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
-use crate::{UpdateResult, AppState, AppMode, ui::textarea::TextArea, command::KeyCommandComposer, store::Task};
+use crate::{ui::{UpdateResult, AppState, textarea::TextArea, AppMode}, command::KeyCommandComposer, store::Task};
+
 use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNotePanel};
 
 // TODO: Bug when first line is just text line and then press enter
@@ -314,6 +315,7 @@ impl Panel for OverviewPanel {
 impl OverviewPanel {
     pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
         let (command_composer, command_rx) = KeyCommandComposer::new();
-        OverviewPanel { rx, text_area: TextArea::new(vec![]), command_composer, command_rx, context_frame: None, task_note_panel: None }
+        let text_area: TextArea<AppState, UpdateResult> = TextArea::new(vec![]);
+        OverviewPanel { rx, text_area, command_composer, command_rx, context_frame: None, task_note_panel: None }
     }
 }
