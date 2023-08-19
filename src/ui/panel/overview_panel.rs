@@ -3,7 +3,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
 use crate::{ui::{UpdateResult, AppState, textarea::TextArea, AppMode}, command::KeyCommandComposer, store::Task};
 
-use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNotePanel};
+use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNotePanel, search_panel::SearchPanel};
 
 // TODO: Bug when first line is just text line and then press enter
 //
@@ -34,6 +34,7 @@ pub enum NormalCommand {
     OpenTaskNotes,
     DeleteChar,
     MoveCursor(CursorMovement),
+    StartSearch
 }
 
 pub struct OverviewPanel {
@@ -64,6 +65,7 @@ impl OverviewPanel {
         self.command_composer.register_keycommand(vec![KeyCode::Char('o')], NormalCommand::InsertNewLineBelow);
         self.command_composer.register_keycommand(vec![KeyCode::Char('x')], NormalCommand::DeleteChar);
         self.command_composer.register_keycommand(vec![KeyCode::Enter], NormalCommand::OpenTaskNotes);
+        self.command_composer.register_keycommand(vec![KeyCode::Char(' '), KeyCode::Char('f'), KeyCode::Char('f')], NormalCommand::StartSearch);
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
@@ -221,6 +223,9 @@ impl Panel for OverviewPanel {
                         let note_id = task_store.get_or_create_note_id(y as i64).unwrap();
                         let note_panel = TaskNotePanel::new(state, self.rx.clone(), note_id);
                         self.task_note_panel = Some(Box::new(note_panel));
+                    }
+                    NormalCommand::StartSearch => {
+                        self.context_frame = Some(Box::new(SearchPanel::new(self.rx.clone(), state)))
                     }
                 }
             }
