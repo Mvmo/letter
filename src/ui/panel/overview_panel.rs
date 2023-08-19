@@ -69,7 +69,11 @@ impl OverviewPanel {
 
         let enter_callback = |text_area: &mut TextArea<AppState, UpdateResult>, app_state: &mut AppState| {
             let (_, y) = text_area.get_cursor();
+            if y >= app_state.task_store.tasks.len() {
+                return (true, UpdateResult::None)
+            }
             app_state.task_store.create_task_at(y as i64 + 1, Task::default());
+            text_area.insert_line_break_at_cursor();
             text_area.move_cursor_down();
             return (true, UpdateResult::Save);
         };

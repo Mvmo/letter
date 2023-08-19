@@ -19,6 +19,7 @@ impl SearchPanel {
         text_area.on_key(KeyCode::Esc, Box::new(|_, _: &mut AppState| {
             return (true, UpdateResult::Quit);
         }));
+        text_area.disallow_line_breaks();
 
         let items = app_state.task_store.tasks.iter()
             .map(|task| task.text.clone())
@@ -38,11 +39,10 @@ impl Panel for SearchPanel {
     }
 
     fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
+        rustic_fuzz::fuzzy_sort_in_place(&mut self.items, &self.text_area.lines.join(" ").to_string());
         if let Some(update_result) = self.text_area.update(self.rx.clone(), app_state) {
             return update_result;
         }
-
-        rustic_fuzz::fuzzy_sort_in_place(&mut self.items, &self.text_area.lines.join(" ").to_string());
 
         UpdateResult::None
     }
