@@ -192,6 +192,10 @@ impl<S, R> TextArea<S, R> {
     }
 
     pub fn insert_line_break_at_cursor(&mut self) {
+        if !self.allow_line_breaks {
+            return;
+        }
+
         let (x, y) = self.cursor;
         let str = self.lines.get_mut(y).unwrap();
 
