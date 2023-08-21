@@ -72,6 +72,15 @@ pub enum EditorMode {
     Insert
 }
 
+impl ToString for EditorMode {
+    fn to_string(&self) -> String {
+        match *self {
+            EditorMode::Insert => String::from("INSERT"),
+            EditorMode::Normal => String::from("NORMAL")
+        }
+    }
+}
+
 pub struct Letter {
     pub task_store: TaskStore,
     pub editor_mode: EditorMode,
