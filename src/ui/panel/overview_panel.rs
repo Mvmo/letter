@@ -1,7 +1,7 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
-use crate::{ui::textarea::TextArea, command::KeyCommandComposer, store::Task, Letter, LetterCommand, EditorMode};
+use crate::{ui::textarea::TextArea, command::KeyCommandComposer, store::Task, app::{Letter, LetterCommand, EditorMode}};
 
 use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNotePanel, search_panel::SearchPanel};
 
