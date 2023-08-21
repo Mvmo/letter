@@ -90,8 +90,8 @@ impl OverviewPanel {
                     letter.task_store.update_task_text(idx as i64, line);
                 });
 
-            //return (true, LetterCommand::UpdateMode(AppMode::NORMAL));
-            return (true, None);
+            letter.editor_mode = EditorMode::Normal;
+            (true, None)
         };
 
         self.text_area.disallow_line_breaks();
@@ -146,7 +146,8 @@ impl Panel for OverviewPanel {
             if let Ok(command) = self.command_rx.try_recv() {
                 match command {
                     NormalCommand::SwitchToInsertMode => {
-                    //    return UpdateResult::UpdateMode(AppMode::INPUT);
+                        letter.editor_mode = EditorMode::Insert;
+                        return None
                     },
                     NormalCommand::Quit => {
                         return Some(LetterCommand::Quit)
@@ -195,11 +196,13 @@ impl Panel for OverviewPanel {
                     },
                     NormalCommand::InsertAtEndOfLine => {
                         self.text_area.move_cursor_to_line_end();
-                        // return UpdateResult::UpdateMode(AppMode::INPUT);
+                        letter.editor_mode = EditorMode::Insert;
+                        return None
                     }
                     NormalCommand::InsertAtBeginningOfLine => {
                         self.text_area.move_cursor_to_line_start();
-                        // return UpdateResult::UpdateMode(AppMode::INPUT);
+                        letter.editor_mode = EditorMode::Insert;
+                        return None
                     }
                     NormalCommand::InsertNewLineAbove => {
                         let index = y.max(0);
