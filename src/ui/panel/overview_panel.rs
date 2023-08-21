@@ -209,19 +209,19 @@ impl Panel for OverviewPanel {
                         letter.task_store.create_task_at(index as i64, Task::default());
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_to_line_start();
-                        // return UpdateResult::UpdateMode(AppMode::INPUT);
+                        letter.editor_mode = EditorMode::Insert
                     }
                     NormalCommand::InsertNewLineBelow => {
                         let index = y + 1;
                         if letter.task_store.tasks.len() == 0 {
                             letter.task_store.create_task_at(index as i64 - 1, Task::default());
-                            //return UpdateResult::UpdateMode(AppMode::INPUT);
+                            letter.editor_mode = EditorMode::Insert;
                         }
 
                         letter.task_store.create_task_at(index as i64, Task::default());
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
-                        // return UpdateResult::UpdateMode(AppMode::INPUT);
+                        letter.editor_mode = EditorMode::Insert;
                     },
                     NormalCommand::OpenTaskNotes => {
                         // TODO error handling
@@ -301,9 +301,9 @@ impl Panel for OverviewPanel {
                 Constraint::Percentage(20),
             ]).split(status_bar_v_layout[1]);
 
-        //let mode_str: String = letter.editor_mode.into();
-        //let mode_paragraph = Paragraph::new(format!("-- {mode_str} --")).style(Style::default().fg(Color::LightYellow));
-        //frame.render_widget(mode_paragraph, status_bar_layout[0]);
+        let mode_str = letter.editor_mode.to_string();
+        let mode_paragraph = Paragraph::new(format!("-- {mode_str} --")).style(Style::default().fg(Color::LightYellow));
+        frame.render_widget(mode_paragraph, status_bar_layout[0]);
 
         let combo_str = self.command_composer.get_combo_string();
         let combo_paragraph = Paragraph::new(format!("{combo_str}"));

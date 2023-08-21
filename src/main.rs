@@ -38,7 +38,7 @@ fn main() -> Result<()> {
         editor.draw(&mut letter);
     }
 
-    editor.deinit();
+    editor.deinit()?;
 
     Ok(())
 }
