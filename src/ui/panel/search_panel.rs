@@ -3,25 +3,25 @@ use std::{sync::{Mutex, Arc, mpsc::Receiver}, io::Stdout};
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{Frame, prelude::{CrosstermBackend, Rect, Layout, Direction, Constraint}, widgets::{Block, Borders, ListItem, List}};
 
-use crate::ui::{textarea::TextArea, AppState, UpdateResult};
+use crate::{ui::textarea::TextArea, Letter, LetterCommand};
 
 use super::Panel;
 
 pub struct SearchPanel {
     rx: Arc<Mutex<Receiver<KeyEvent>>>,
-    text_area: TextArea<AppState, UpdateResult>,
+    text_area: TextArea<Letter, LetterCommand>,
     items: Vec<String>
 }
 
 impl SearchPanel {
-    pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>, app_state: &mut AppState) -> Self {
+    pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>, letter: &mut Letter) -> Self {
         let mut text_area = TextArea::new(vec![]);
-        text_area.on_key(KeyCode::Esc, Box::new(|_, _: &mut AppState| {
-            return (true, UpdateResult::Quit);
+        text_area.on_key(KeyCode::Esc, Box::new(|_, _: &mut Letter| {
+            return (true, Some(LetterCommand::Quit));
         }));
         text_area.disallow_line_breaks();
 
-        let items = app_state.task_store.tasks.iter()
+        let items = letter.task_store.tasks.iter()
             .map(|task| task.text.clone())
             .collect();
 
@@ -38,16 +38,12 @@ impl Panel for SearchPanel {
         "search".to_string()
     }
 
-    fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
+    fn update(&mut self, letter: &mut Letter) -> Option<LetterCommand> {
         rustic_fuzz::fuzzy_sort_in_place(&mut self.items, &self.text_area.lines.join(" ").to_string());
-        if let Some(update_result) = self.text_area.update(self.rx.clone(), app_state) {
-            return update_result;
-        }
-
-        UpdateResult::None
+        return self.text_area.update(self.rx.clone(), letter);
     }
 
-    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, area: Rect, app_state: &AppState) {
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, _area: Rect, _letter: &Letter) {
         let rect = centered_rect(70, 80, frame.size());
         let search_block = Block::default()
             .title("Search")

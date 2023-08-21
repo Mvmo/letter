@@ -7,7 +7,7 @@ pub struct TextArea<S, R> {
     pub lines: Vec<String>,
     cursor: (usize, usize),
     allow_line_breaks: bool,
-    callbacks: HashMap<KeyCode, Box<dyn FnMut(&mut Self, &mut S) -> (bool, R)>>
+    callbacks: HashMap<KeyCode, Box<dyn FnMut(&mut Self, &mut S) -> (bool, Option<R>)>>
 }
 
 impl<S, R> TextArea<S, R> {
@@ -32,7 +32,7 @@ impl<S, R> TextArea<S, R> {
         }
     }
 
-    pub fn on_key(&mut self, key_code: KeyCode, callback: Box<dyn FnMut(&mut Self, &mut S) -> (bool, R)>) {
+    pub fn on_key(&mut self, key_code: KeyCode, callback: Box<dyn FnMut(&mut Self, &mut S) -> (bool, Option<R>)>) {
         self.callbacks.insert(key_code, callback);
     }
 
@@ -270,7 +270,7 @@ impl<S, R> TextArea<S, R> {
                 let (should_cancel, result) = callback(self, state);
                 self.callbacks.insert(key_code, callback);
                 if should_cancel {
-                    return Some(result);
+                    return result;
                 }
             }
 

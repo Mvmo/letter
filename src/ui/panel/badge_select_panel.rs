@@ -3,7 +3,7 @@ use std::{io::Stdout, sync::{Arc, Mutex, mpsc::Receiver}};
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::{ListItem, List, Clear}, style::{Style, Color}};
 
-use crate::ui::{AppState, UpdateResult};
+use crate::{Letter, LetterCommand};
 
 use super::Panel;
 
@@ -20,7 +20,7 @@ impl Panel for BadgeSelectPanel {
         "badge-select".to_string()
     }
 
-    fn update(&mut self, app_state: &mut AppState) -> UpdateResult {
+    fn update(&mut self, app_state: &mut Letter) -> Option<LetterCommand> {
         let rx = self.rx.lock().unwrap();
         if let Ok(key_event) = rx.try_recv() {
             match key_event.code {
@@ -42,17 +42,17 @@ impl Panel for BadgeSelectPanel {
                     let (badge_idx, _) = self.values.get(self.cursor as usize).expect("something is really wrong :(");
                     let badge = app_state.task_store.badges.get(badge_idx).expect("even more wrong");
                     app_state.task_store.update_task_badge(self.task_idx_sort_order as i64, badge.id);
-                    return UpdateResult::Quit;
+                    return Some(LetterCommand::Quit)
                 }
-                KeyCode::Char('t') => return UpdateResult::Quit,
-                KeyCode::Esc => return UpdateResult::Quit,
+                KeyCode::Char('t') => return Some(LetterCommand::Quit),
+                KeyCode::Esc => return Some(LetterCommand::Quit),
                 _ => {}
             }
         }
-        UpdateResult::None
+        None
     }
 
-    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, area: Rect, app_state: &AppState) {
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, area: Rect, letter: &Letter) {
         let list_items: Vec<ListItem> = self.values
             .iter()
             .enumerate()
@@ -79,9 +79,9 @@ impl Panel for BadgeSelectPanel {
 }
 
 impl BadgeSelectPanel {
-    pub fn new(app_state: &AppState, task_idx_sort_order: usize, position: (usize, usize), rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
-        let task = &app_state.task_store.tasks.get(task_idx_sort_order).unwrap();
-        let badges = &app_state.task_store.badges;
+    pub fn new(letter: &Letter, task_idx_sort_order: usize, position: (usize, usize), rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
+        let task = &letter.task_store.tasks.get(task_idx_sort_order).unwrap();
+        let badges = &letter.task_store.badges;
 
         let values = badges.iter()
             .filter(|(_, badge)| Some(badge.id) != task.badge_id)
