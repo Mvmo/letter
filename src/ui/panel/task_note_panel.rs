@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex, mpsc::Receiver};
 
 use crossterm::event::{KeyEvent, KeyCode};
+use log::info;
 use ratatui::{prelude::Rect, widgets::{Block, Borders, BorderType, Clear}};
 
 use crate::{ui::textarea::TextArea, Letter, LetterCommand, EditorMode};
@@ -29,7 +30,9 @@ impl Panel for TaskNotePanel {
                     match key_event.code {
                         KeyCode::Char('i') => letter.editor_mode = EditorMode::Insert,
                         KeyCode::Esc => {
-                            letter.task_store.update_note_text(self.note_id, &self.text_area.lines.join("\n"));
+                            if let Err(_) = letter.task_store.update_note_text(self.note_id, &self.text_area.lines.join("\n")) {
+                                info!("Error on update note text")
+                            }
                             return Some(LetterCommand::Quit);
                         },
                         _ => return None
@@ -66,9 +69,8 @@ impl TaskNotePanel {
             .collect();
 
         let mut text_area = TextArea::new(lines);
-        let esc_callback = |_: &mut TextArea<Letter, LetterCommand>, letter: &mut Letter| {
+        let esc_callback = |_: &mut TextArea<Letter, LetterCommand>, _: &mut Letter| {
             (true, Some(LetterCommand::Quit))
-            // return (true, LetterCommand::UpdateMode(AppMode::NORMAL));
         };
 
         text_area.on_key(KeyCode::Esc, Box::new(esc_callback));
