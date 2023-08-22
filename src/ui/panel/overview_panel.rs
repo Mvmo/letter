@@ -137,6 +137,8 @@ impl Panel for OverviewPanel {
                     return Some(letter_command)
                 }
             }
+
+            return None;
         }
 
         if let EditorMode::Insert = letter.editor_mode {
@@ -318,7 +320,6 @@ impl Panel for OverviewPanel {
         frame.render_widget(coordinates_paragraph, status_bar_layout[2]);
 
         if let Some(badge_select_panel) = &mut self.badge_select_panel {
-            let pos = badge_select_panel.position;
             badge_select_panel.position.0 = editor_layout[2].x as usize;
             badge_select_panel.draw(frame, area, letter);
         }

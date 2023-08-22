@@ -21,15 +21,13 @@ impl Panel for TaskNotePanel {
     fn update(&mut self, letter: &mut Letter) -> Option<LetterCommand> {
         match letter.editor_mode {
             EditorMode::Insert => {
-                if let Some(update_result) = self.text_area.update(self.rx.clone(), letter) {
-                    return Some(update_result)
-                }
-            },
+                return self.text_area.update(self.rx.clone(), letter);
+            }
             EditorMode::Normal => {
                 let rx = self.rx.lock().unwrap();
                 if let Ok(key_event) = rx.recv() {
                     match key_event.code {
-                        KeyCode::Char('i') => {  },// return UpdateResult::UpdateMode(AppMode::INPUT),
+                        KeyCode::Char('i') => letter.editor_mode = EditorMode::Insert,
                         KeyCode::Esc => {
                             letter.task_store.update_note_text(self.note_id, &self.text_area.lines.join("\n"));
                             return Some(LetterCommand::Quit);
@@ -68,8 +66,8 @@ impl TaskNotePanel {
             .collect();
 
         let mut text_area = TextArea::new(lines);
-        let esc_callback = |_: &mut TextArea<Letter, LetterCommand>, _: &mut Letter| {
-            (true, None)
+        let esc_callback = |_: &mut TextArea<Letter, LetterCommand>, letter: &mut Letter| {
+            (true, Some(LetterCommand::Quit))
             // return (true, LetterCommand::UpdateMode(AppMode::NORMAL));
         };
 
