@@ -258,7 +258,7 @@ impl TaskStore {
         Ok(())
     }
 
-    pub fn update_task_order(&mut self, task: &Task, sort_order: i64) -> Result<()> {
+    pub fn _update_task_order(&mut self, task: &Task, sort_order: i64) -> Result<()> {
         self.connection.execute(r#"
             UPDATE tasks
                 SET sort_order = ?1
