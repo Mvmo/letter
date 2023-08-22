@@ -1,6 +1,7 @@
 use std::{io::Stdout, sync::{Arc, Mutex, mpsc::Receiver}};
 
 use crossterm::event::{KeyEvent, KeyCode};
+use log::error;
 use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::{ListItem, List, Clear}, style::{Style, Color}};
 
 use crate::{Letter, LetterCommand};
@@ -41,7 +42,13 @@ impl Panel for BadgeSelectPanel {
                 KeyCode::Enter => {
                     let (badge_idx, _) = self.values.get(self.cursor as usize).expect("something is really wrong :(");
                     let badge = app_state.task_store.badges.get(badge_idx).expect("even more wrong");
-                    app_state.task_store.update_task_badge(self.task_idx_sort_order as i64, badge.id);
+                    let badge_id = badge.id;
+                    let idx = self.task_idx_sort_order;
+
+                    if let Err(_) = app_state.task_store.update_task_badge(idx as i64, badge_id) {
+                        error!("couldn't update task badge for {idx} using badge {badge_id}")
+                    }
+
                     return Some(LetterCommand::Quit)
                 }
                 KeyCode::Char('t') => return Some(LetterCommand::Quit),
@@ -52,7 +59,7 @@ impl Panel for BadgeSelectPanel {
         None
     }
 
-    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, area: Rect, letter: &Letter) {
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, _: Rect, _: &Letter) {
         let list_items: Vec<ListItem> = self.values
             .iter()
             .enumerate()
