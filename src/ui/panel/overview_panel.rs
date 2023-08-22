@@ -32,7 +32,8 @@ pub enum NormalCommand {
     OpenTaskNotes,
     DeleteChar,
     MoveCursor(CursorMovement),
-    StartSearch
+    StartSearch,
+    Debug
 }
 
 pub struct OverviewPanel {
@@ -64,6 +65,7 @@ impl OverviewPanel {
         self.command_composer.register_keycommand(vec![KeyCode::Char('x')], NormalCommand::DeleteChar);
         self.command_composer.register_keycommand(vec![KeyCode::Enter], NormalCommand::OpenTaskNotes);
         self.command_composer.register_keycommand(vec![KeyCode::Char(' '), KeyCode::Char('f'), KeyCode::Char('f')], NormalCommand::StartSearch);
+        self.command_composer.register_keycommand(vec![KeyCode::Char(' '), KeyCode::Char('~')], NormalCommand::Debug);
 
         let enter_callback = |text_area: &mut TextArea<Letter, LetterCommand>, letter: &mut Letter| {
             let (_, y) = text_area.get_cursor();
@@ -231,6 +233,9 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::StartSearch => {
                         self.context_frame = Some(Box::new(SearchPanel::new(self.rx.clone(), letter)))
+                    }
+                    NormalCommand::Debug => {
+                        return Some(LetterCommand::Debug);
                     }
                 }
             }

@@ -12,3 +12,4 @@ uuid = "*"
 dotenv = "0.15.0"
 rusqlite = { version = "0.29.0", features = ["bundled"] }
 rustic-fuzz = "0.1.0"
+log = { version = "*", features = ["std"] }

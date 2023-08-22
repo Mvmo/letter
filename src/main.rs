@@ -28,9 +28,11 @@ fn main() -> Result<()> {
     editor.init(&letter)?;
 
     loop {
-        if let Some(command) = editor.update(&mut letter) {
-            match command {
+        let cmd_out = editor.update(&mut letter);
+        if let Some(cmd) = cmd_out {
+            match cmd {
                 LetterCommand::Quit => break,
+                LetterCommand::Debug => editor.debug_panel_shown = !editor.debug_panel_shown,
                 _ => {}
             }
         }

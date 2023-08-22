@@ -154,6 +154,7 @@ version = "0.1.0"
 dependencies = [
  "crossterm 0.25.0",
  "dotenv",
+ "log",
  "ratatui",
  "rusqlite",
  "rustic-fuzz",
