@@ -118,12 +118,16 @@ impl TaskStore {
                 name  TEXT                NOT NULL,
                 color TEXT                NOT NULL /* ansi color format */
             );
+        "#, ())?;
 
+        self.connection.execute(r#"
             CREATE TABLE IF NOT EXISTS notes (
                 id   INTEGER PRIMARY KEY NOT NULL,
                 text TEXT                NOT NULL
             );
+        "#, ())?;
 
+        self.connection.execute(r#"
             CREATE TABLE IF NOT EXISTS tasks (
                 id         INTEGER PRIMARY KEY NOT NULL,
                 text       TEXT                NOT NULL,
@@ -134,7 +138,9 @@ impl TaskStore {
                 FOREIGN KEY (badge_id) REFERENCES badges (id),
                 FOREIGN KEY (note_id) REFERENCES notes (id)
             );
+        "#, ())?;
 
+        self.connection.execute(r#"
             INSERT INTO badges (name, color)
                 SELECT 'TODO', '#FF9B9B'
                 UNION ALL
@@ -143,6 +149,7 @@ impl TaskStore {
                 SELECT 'Done', '#CBFFA9'
             WHERE (SELECT count(*) FROM badges) = 0;
         "#, ())?;
+
         Ok(())
     }
 
