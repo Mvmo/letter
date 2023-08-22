@@ -14,7 +14,7 @@ pub struct SearchPanel {
 }
 
 impl SearchPanel {
-    pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>, letter: &mut Letter) -> Self {
+    pub fn _new(rx: Arc<Mutex<Receiver<KeyEvent>>>, letter: &mut Letter) -> Self {
         let mut text_area = TextArea::new(vec![]);
         text_area.on_key(KeyCode::Esc, Box::new(|_, _: &mut Letter| {
             return (true, Some(LetterCommand::Quit));
