@@ -21,7 +21,8 @@ pub enum CursorMovement{
 pub enum NormalCommand {
     Quit,
     Sort,
-    SwitchToInsertMode,
+    Insert,
+    InsertAfter,
     InsertAtEndOfLine,
     InsertAtBeginningOfLine,
     InsertNewLineBelow,
@@ -46,9 +47,10 @@ pub struct OverviewPanel {
 
 impl OverviewPanel {
     pub fn init(&mut self, letter: &Letter) {
-        self.command_composer.register_keycommand(vec![KeyCode::Char('i')], NormalCommand::SwitchToInsertMode);
+        self.command_composer.register_keycommand(vec![KeyCode::Char('i')], NormalCommand::Insert);
         self.command_composer.register_keycommand(vec![KeyCode::Char('I')], NormalCommand::InsertAtBeginningOfLine);
         self.command_composer.register_keycommand(vec![KeyCode::Char('A')], NormalCommand::InsertAtEndOfLine);
+        self.command_composer.register_keycommand(vec![KeyCode::Char('a')], NormalCommand::InsertAfter);
         self.command_composer.register_keycommand(vec![KeyCode::Char('d'), KeyCode::Char('d')], NormalCommand::DeleteLine);
         self.command_composer.register_keycommand(vec![KeyCode::Char('t')], NormalCommand::ToggleTaskState);
         self.command_composer.register_keycommand(vec![KeyCode::Char(' '), KeyCode::Char('q')], NormalCommand::Quit);
@@ -156,7 +158,12 @@ impl Panel for OverviewPanel {
         if let EditorMode::Normal = letter.editor_mode {
             if let Ok(command) = self.command_rx.try_recv() {
                 match command {
-                    NormalCommand::SwitchToInsertMode => {
+                    NormalCommand::Insert => {
+                        letter.editor_mode = EditorMode::Insert;
+                        return None
+                    },
+                    NormalCommand::InsertAfter => {
+                        self.text_area.move_cursor_right();
                         letter.editor_mode = EditorMode::Insert;
                         return None
                     },
@@ -280,7 +287,6 @@ impl Panel for OverviewPanel {
                 Constraint::Length(3)
             ]).split(frame.size());
 
-        // TODO - move this calc somewhere else
         let widest_badge = letter.task_store.badges.iter()
             .map(|(_, badge)| badge.name.len())
             .max()
