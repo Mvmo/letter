@@ -9,7 +9,7 @@ use super::Panel;
 
 pub struct BadgeSelectPanel {
     rx: Arc<Mutex<Receiver<KeyEvent>>>,
-    position: (usize, usize),
+    pub position: (usize, usize),
     cursor: usize,
     task_idx_sort_order: usize,
     values: Vec<(i64, String)>
@@ -58,7 +58,7 @@ impl Panel for BadgeSelectPanel {
             .enumerate()
             .map(|(idx, (_, badge_name))| {
                 if idx == self.cursor {
-                    return ListItem::new(format!("> {}", badge_name.clone())).style(Style::default().bg(Color::DarkGray));
+                    return ListItem::new(format!("> {}", badge_name.clone())).style(Style::default().bg(Color::Rgb(20, 0, 20)));
                 }
                 return ListItem::new(badge_name.clone());
             })

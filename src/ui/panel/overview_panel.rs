@@ -41,7 +41,7 @@ pub struct OverviewPanel {
     text_area: TextArea<Letter, LetterCommand>,
     command_composer: KeyCommandComposer<NormalCommand>,
     command_rx: Receiver<NormalCommand>,
-    context_frame: Option<Box<dyn Panel>>,
+    badge_select_panel: Option<BadgeSelectPanel>,
     task_note_panel: Option<Box<dyn Panel>>
 }
 
@@ -116,10 +116,10 @@ impl Panel for OverviewPanel {
     }
 
     fn update(&mut self, letter: &mut Letter) -> Option<LetterCommand> {
-        if let Some(context_frame) = &mut self.context_frame {
-            let update_cmd = context_frame.update(letter);
+        if let Some(badge_select_panel) = &mut self.badge_select_panel {
+            let update_cmd = badge_select_panel.update(letter);
             if let Some(LetterCommand::Quit) = update_cmd {
-                self.context_frame = None;
+                self.badge_select_panel = None;
                 return None;
             }
 
@@ -175,9 +175,9 @@ impl Panel for OverviewPanel {
                         // let mut task = tasks.get_mut(y).unwrap();
                         // TODO task.state = task.state.next();
                         // TODO task_store.save();
-                        match self.context_frame {
-                            Some(_) => self.context_frame = None,
-                            None => self.context_frame = Some(Box::new(BadgeSelectPanel::new(letter, y, (x, y), self.rx.clone())))
+                        match self.badge_select_panel {
+                            Some(_) => self.badge_select_panel = None,
+                            None => self.badge_select_panel = Some(BadgeSelectPanel::new(letter, y, (x, y), self.rx.clone()))
                         }
                         //self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }));
                         return None;
@@ -232,7 +232,7 @@ impl Panel for OverviewPanel {
                         self.task_note_panel = Some(Box::new(note_panel));
                     }
                     NormalCommand::StartSearch => {
-                        self.context_frame = Some(Box::new(SearchPanel::new(self.rx.clone(), letter)))
+                        // self.badge_select_panel = Some(Box::new(SearchPanel::new(self.rx.clone(), letter)))
                     }
                     NormalCommand::Debug => {
                         return Some(LetterCommand::Debug);
@@ -317,8 +317,10 @@ impl Panel for OverviewPanel {
         let coordinates_paragraph = Paragraph::new(format!("{y},{x}"));
         frame.render_widget(coordinates_paragraph, status_bar_layout[2]);
 
-        if let Some(context_frame) = &mut self.context_frame {
-            context_frame.draw(frame, area, letter);
+        if let Some(badge_select_panel) = &mut self.badge_select_panel {
+            let pos = badge_select_panel.position;
+            badge_select_panel.position.0 = editor_layout[2].x as usize;
+            badge_select_panel.draw(frame, area, letter);
         }
 
         if let Some(note_panel) = &mut self.task_note_panel {
@@ -331,6 +333,6 @@ impl OverviewPanel {
     pub fn new(rx: Arc<Mutex<Receiver<KeyEvent>>>) -> Self {
         let (command_composer, command_rx) = KeyCommandComposer::new();
         let text_area: TextArea<Letter, LetterCommand> = TextArea::new(vec![]);
-        OverviewPanel { rx, text_area, command_composer, command_rx, context_frame: None, task_note_panel: None }
+        OverviewPanel { rx, text_area, command_composer, command_rx, badge_select_panel: None, task_note_panel: None }
     }
 }
