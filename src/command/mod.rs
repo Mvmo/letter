@@ -22,7 +22,7 @@ impl<C: Copy> KeyCommandComposer<C> {
         (KeyCommandComposer { command_registry: HashMap::new(), current_composition: Vec::new(), tx }, rx)
     }
 
-    pub fn len(&self) -> usize {
+    pub fn _len(&self) -> usize {
         return self.current_composition.len();
     }
 
