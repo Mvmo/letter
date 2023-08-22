@@ -40,7 +40,7 @@ impl<S, R> TextArea<S, R> {
         self.cursor
     }
 
-    pub fn set_cursor(&mut self, cursor: (usize, usize)) {
+    pub fn _set_cursor(&mut self, cursor: (usize, usize)) {
         self.cursor = cursor
     }
 
@@ -57,7 +57,7 @@ impl<S, R> TextArea<S, R> {
         self.cursor = (x - 1, y);
     }
 
-    pub fn move_cursor_left_times(&mut self, times: u16) {
+    pub fn _move_cursor_left_times(&mut self, times: u16) {
         for _ in 0..times {
             self.move_cursor_left();
         }
@@ -241,7 +241,7 @@ impl<S, R> TextArea<S, R> {
     }
 
     pub fn delete_current_line(&mut self) {
-        let (x, y) = self.cursor;
+        let (_, y) = self.cursor;
 
         if y == 0 {
             self.lines.remove(y);
