@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, fs::metadata};
+use std::sync::{Arc, Mutex};
 
 use log::{LevelFilter, set_max_level};
 
