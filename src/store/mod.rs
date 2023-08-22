@@ -110,7 +110,6 @@ impl TaskStore {
         }
     }
 
-    // TODO something is wrong with initial setup
     fn ensure_proper_setup(&mut self) -> Result<()> {
         self.connection.execute(r#"
             CREATE TABLE IF NOT EXISTS badges (

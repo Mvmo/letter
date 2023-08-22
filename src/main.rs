@@ -3,6 +3,8 @@ mod command;
 mod store;
 mod app;
 
+use std::{path::PathBuf, fs::File};
+
 use app::{Letter, LetterEditor, EditorMode, LetterCommand};
 use rusqlite::Connection;
 use store::TaskStore;
@@ -10,10 +12,14 @@ use store::TaskStore;
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn create_database_connection() -> Result<Connection> {
-    let database_path_str = "./.letter.db";
-    // TODO - create file if it doesn't exist // OpenOptions::new().create(true).truncate(false).open(Path::new(database_path_str))?;
+    let db_path_str = "./.letter.db";
 
-    Connection::open(database_path_str)
+    let db_path = PathBuf::from(db_path_str);
+    if !db_path.exists() {
+        File::create(db_path)?;
+    }
+
+    Connection::open(db_path_str)
         .map_err(|_| "cannot open sqlite database file".into())
 }
 
