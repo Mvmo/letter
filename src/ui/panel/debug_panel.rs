@@ -26,11 +26,11 @@ impl Panel for DebugPanel {
         "debug".to_string()
     }
 
-    fn update(&mut self, letter: &mut Letter) -> Option<LetterCommand> {
+    fn update(&mut self, _: &mut Letter) -> Option<LetterCommand> {
         None
     }
 
-    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, area: Rect, letter: &Letter) {
+    fn draw(&mut self, frame: &mut Frame<CrosstermBackend<Stdout>>, area: Rect, _: &Letter) {
         let block = Block::default()
             .title("Debug")
             .style(Style::default().bg(Color::DarkGray))
