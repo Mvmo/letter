@@ -7,7 +7,7 @@ use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNo
 
 // TODO: Bug when first line is just text line and then press enter
 #[derive(Clone, Copy)]
-pub enum CursorMovement {
+pub enum CursorMovement{
     Up,
     Down,
     Left,
