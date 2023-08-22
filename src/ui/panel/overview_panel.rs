@@ -1,9 +1,10 @@
 use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}};
 use crossterm::event::{KeyCode, KeyEvent};
+use log::error;
 use ratatui::{Frame, backend::CrosstermBackend, widgets::{ListItem, List, Paragraph}, prelude::{Layout, Direction, Constraint, Rect}, style::{Style, Color}};
 use crate::{ui::textarea::TextArea, command::KeyCommandComposer, store::Task, app::{Letter, LetterCommand, EditorMode}};
 
-use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNotePanel, search_panel::SearchPanel};
+use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNotePanel};
 
 // TODO: Bug when first line is just text line and then press enter
 #[derive(Clone, Copy)]
@@ -14,8 +15,6 @@ pub enum CursorMovement{
     Right,
     WordForward,
     WordBackward,
-    StartOfLine,
-    EndOfLine,
 }
 
 #[derive(Clone, Copy)]
@@ -72,7 +71,11 @@ impl OverviewPanel {
             if y >= letter.task_store.tasks.len() {
                 return (true, None)
             }
-            letter.task_store.create_task_at(y as i64 + 1, Task::default());
+
+            if let Err(_) = letter.task_store.create_task_at(y as i64 + 1, Task::default()) {
+                error!("couldn't create task at {y}+1 using Task::default");
+            }
+
             text_area.insert_line_break_at_cursor();
             text_area.move_cursor_down();
             return (true, Some(LetterCommand::Save));
@@ -82,14 +85,18 @@ impl OverviewPanel {
             if text_area.lines.len() > letter.task_store.tasks.len() {
                 let diff = text_area.lines.len() - letter.task_store.tasks.len();
                 for _ in 0..diff {
-                    letter.task_store.create_task(Task::default());
+                    if let Err(_) = letter.task_store.create_task(Task::default()) {
+                        error!("couldn't create task using Task::default()")
+                    }
                 }
             }
 
             text_area.lines.iter()
                 .enumerate()
                 .for_each(|(idx, line)| {
-                    letter.task_store.update_task_text(idx as i64, line);
+                    if let Err(_) = letter.task_store.update_task_text(idx as i64, line) {
+                        error!("couldn't update task text for task {idx} -> {line}")
+                    }
                 });
 
             letter.editor_mode = EditorMode::Normal;
@@ -163,8 +170,9 @@ impl Panel for OverviewPanel {
                     NormalCommand::DeleteLine => {
                         self.text_area.delete_current_line();
                         if letter.task_store.tasks.len() > y {
-                            letter.task_store.delete_task(y as i64);
-                            //task_store.tasks.remove(y);
+                            if let Err(_) = letter.task_store.delete_task(y as i64) {
+                                error!("couldn't delete task at {y}")
+                            }
                         }
                         return Some(LetterCommand::Save);
                     }
@@ -190,8 +198,6 @@ impl Panel for OverviewPanel {
                             CursorMovement::Down => self.text_area.move_cursor_down(),
                             CursorMovement::Left => self.text_area.move_cursor_left(),
                             CursorMovement::Right => self.text_area.move_cursor_right(),
-                            CursorMovement::StartOfLine => self.text_area.move_cursor_to_line_start(),
-                            CursorMovement::EndOfLine => self.text_area.move_cursor_to_line_end(),
                             CursorMovement::WordForward => self.text_area.move_cursor_one_word_forward(),
                             CursorMovement::WordBackward => self.text_area.move_cursor_one_word_backward(),
                         }
@@ -210,7 +216,11 @@ impl Panel for OverviewPanel {
                     }
                     NormalCommand::InsertNewLineAbove => {
                         let index = y.max(0);
-                        letter.task_store.create_task_at(index as i64, Task::default());
+
+                        if let Err(_) = letter.task_store.create_task_at(index as i64, Task::default()) {
+                            error!("couldn't create task at {index} using Task::default")
+                        }
+
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_to_line_start();
                         letter.editor_mode = EditorMode::Insert
@@ -218,11 +228,16 @@ impl Panel for OverviewPanel {
                     NormalCommand::InsertNewLineBelow => {
                         let index = y + 1;
                         if letter.task_store.tasks.len() == 0 {
-                            letter.task_store.create_task_at(index as i64 - 1, Task::default());
+                            if let Err(_) = letter.task_store.create_task_at(index as i64 - 1, Task::default()) {
+                                error!("couldn't create task at {index} - 1")
+                            }
                             letter.editor_mode = EditorMode::Insert;
                         }
 
-                        letter.task_store.create_task_at(index as i64, Task::default());
+                        if let Err(_) = letter.task_store.create_task_at(index as i64, Task::default()) {
+                            error!("couldn't create task at {index}")
+                        }
+
                         self.text_area.insert_line(index, String::new());
                         self.text_area.move_cursor_down();
                         letter.editor_mode = EditorMode::Insert;
@@ -246,7 +261,6 @@ impl Panel for OverviewPanel {
         let rx = self.rx.lock().unwrap();
 
         if let Ok(key_event) = rx.try_recv() {
-            let (_, y) = self.text_area.get_cursor();
             if let EditorMode::Normal = letter.editor_mode {
                 let keycode = key_event.code;
                 self.command_composer.push_key(keycode);
