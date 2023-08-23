@@ -139,6 +139,11 @@ impl TaskStore {
             );
         "#, ())?;
 
+        let row_count: i64 = self.connection.query_row("SELECT COUNT(*) FROM badges", (), |row| row.get(0))?;
+        if row_count >= 1 {
+            return Ok(())
+        }
+
         self.connection.execute(r#"
             INSERT INTO badges (name, color)
                 SELECT 'TODO', '#FF9B9B'
