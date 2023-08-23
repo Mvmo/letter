@@ -107,6 +107,15 @@ pub struct Letter {
     pub editor_mode: EditorMode,
 }
 
+impl Letter {
+    pub fn new(task_store: TaskStore) -> Self {
+        Self {
+            task_store,
+            editor_mode: EditorMode::Normal
+        }
+    }
+}
+
 pub enum LetterCommand {
     Quit,
     Save,

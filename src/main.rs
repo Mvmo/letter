@@ -28,7 +28,7 @@ fn main() -> Result<()> {
     let mut task_store = TaskStore::new(connection);
     task_store.fetch_data()?;
 
-    let mut letter = Letter { task_store, editor_mode: EditorMode::Normal };
+    let mut letter = Letter::new(task_store);
     let mut editor = LetterEditor::default();
 
     editor.init(&letter)?;
