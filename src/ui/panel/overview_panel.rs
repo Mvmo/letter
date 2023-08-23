@@ -6,7 +6,6 @@ use crate::{ui::textarea::TextArea, command::KeyCommandComposer, store::Task, ap
 
 use super::{Panel, badge_select_panel::BadgeSelectPanel, task_note_panel::TaskNotePanel};
 
-// TODO: Bug when first line is just text line and then press enter
 #[derive(Clone, Copy)]
 pub enum CursorMovement{
     Up,
