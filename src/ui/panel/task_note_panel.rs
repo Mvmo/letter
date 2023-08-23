@@ -62,15 +62,16 @@ impl Panel for TaskNotePanel {
 }
 
 impl TaskNotePanel {
-    pub fn new(app_state: &Letter, rx: Arc<Mutex<Receiver<KeyEvent>>>, note_id: i64) -> Self {
-        let lines: Vec<String> = app_state.task_store.get_note_by_id(note_id).unwrap()
+    pub fn new(letter: &Letter, rx: Arc<Mutex<Receiver<KeyEvent>>>, note_id: i64) -> Self {
+        let lines: Vec<String> = letter.task_store.get_note_by_id(note_id).unwrap()
             .text.lines()
             .map(|s| String::from(s))
             .collect();
 
         let mut text_area = TextArea::new(lines);
-        let esc_callback = |_: &mut TextArea<Letter, LetterCommand>, _: &mut Letter| {
-            (true, Some(LetterCommand::Quit))
+        let esc_callback = |_: &mut TextArea<Letter, LetterCommand>, letter: &mut Letter| {
+            letter.editor_mode = EditorMode::Normal;
+            (true, None)
         };
 
         text_area.on_key(KeyCode::Esc, Box::new(esc_callback));
