@@ -211,7 +211,7 @@ impl TaskStore {
     }
 
     pub fn get_or_create_note_id(&mut self, idx_sort_order: i64) -> Result<i64> {
-        let task = self.tasks.get(idx_sort_order as usize).unwrap();
+        let task = self.tasks.get(idx_sort_order as usize).ok_or_else(|| "couldn't access task".to_string())?;
         match task.note_id {
             Some(note_id) => return Ok(note_id),
             None => {

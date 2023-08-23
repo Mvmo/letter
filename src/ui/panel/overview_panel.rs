@@ -189,14 +189,11 @@ impl Panel for OverviewPanel {
                         return Some(LetterCommand::Save);
                     }
                     NormalCommand::ToggleTaskState => {
-                        // let mut task = tasks.get_mut(y).unwrap();
-                        // TODO task.state = task.state.next();
-                        // TODO task_store.save();
                         match self.badge_select_panel {
                             Some(_) => self.badge_select_panel = None,
                             None => self.badge_select_panel = Some(BadgeSelectPanel::new(letter, y, (x, y), self.rx.clone()))
                         }
-                        //self.context_frame = Some(Box::new(BadgeSelectPanel { position: (x, y) }));
+
                         return None;
                     }
                     NormalCommand::MoveCursor(movement) => {
@@ -250,10 +247,10 @@ impl Panel for OverviewPanel {
                         letter.editor_mode = EditorMode::Insert;
                     },
                     NormalCommand::OpenTaskNotes => {
-                        // TODO error handling
-                        let note_id = letter.task_store.get_or_create_note_id(y as i64).unwrap();
-                        let note_panel = TaskNotePanel::new(letter, self.rx.clone(), note_id);
-                        self.task_note_panel = Some(Box::new(note_panel));
+                        if let Ok(note_id) = letter.task_store.get_or_create_note_id(y as i64) {
+                            let note_panel = TaskNotePanel::new(letter, self.rx.clone(), note_id);
+                            self.task_note_panel = Some(Box::new(note_panel));
+                        }
                     }
                     NormalCommand::StartSearch => {
                         // self.badge_select_panel = Some(Box::new(SearchPanel::new(self.rx.clone(), letter)))
@@ -310,7 +307,7 @@ impl Panel for OverviewPanel {
             }).collect();
 
         frame.render_widget(List::new(task_status_list), editor_layout[0]);
-        self.text_area.draw(frame, editor_layout[2]); // TODO: Create custom widget for text area
+        self.text_area.draw(frame, editor_layout[2]);
 
         let (x, y) = self.text_area.get_cursor();
         let status_bar_v_layout = Layout::default()
