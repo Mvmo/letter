@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, mpsc::Receiver};
 
 use crossterm::event::{KeyEvent, KeyCode};
 use log::info;
-use ratatui::{prelude::Rect, widgets::{Block, Borders, BorderType, Clear}};
+use ratatui::{prelude::Rect, widgets::{Block, Borders, BorderType, Clear}, style::{Stylize, Color}};
 
 use crate::{ui::textarea::TextArea, Letter, LetterCommand, EditorMode};
 
@@ -43,7 +43,6 @@ impl Panel for TaskNotePanel {
         return None
     }
 
-    // TODO use rect
     fn draw(&mut self, frame: &mut ratatui::Frame<ratatui::prelude::CrosstermBackend<std::io::Stdout>>, _: Rect, _: &Letter) {
         let mut r = frame.size();
         r.x = r.width / 2;
@@ -52,6 +51,7 @@ impl Panel for TaskNotePanel {
         let block = Block::new()
             .borders(Borders::ALL)
             .border_type(BorderType::Plain)
+            .bg(Color::Rgb(0, 22, 0))
             .title("Notes");
 
         let inner = block.inner(r);
