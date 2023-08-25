@@ -283,17 +283,23 @@ impl Panel for OverviewPanel {
                 Constraint::Length(3)
             ]).split(frame.size());
 
-        let widest_badge = letter.task_store.badges.iter()
-            .map(|(_, badge)| badge.name.len())
+        let widest_badge_used = letter.task_store.tasks.iter()
+            .filter_map(|task| letter.task_store.get_badge(&task))
+            .map(|badge| badge.name.len())
             .max()
             .unwrap_or(0) as u16;
+
+           // letter.task_store.badges.iter()
+           // .map(|(_, badge)| badge.name.len())
+           // .max()
+           // .unwrap_or(0) as u16;
 
         let editor_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(widest_badge),
+                Constraint::Length(widest_badge_used),
                 Constraint::Length(1),
-                Constraint::Length(full_width - widest_badge)
+                Constraint::Length(full_width - widest_badge_used)
             ]).split(overview_layout[0]);
 
         let task_status_list: Vec<ListItem> = letter.task_store.tasks.iter()
