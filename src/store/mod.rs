@@ -269,6 +269,19 @@ impl TaskStore {
         Ok(())
     }
 
+    pub fn unset_task_badge(&mut self, idx_sort_order: i64) -> Result<()> {
+        self.connection.execute(r#"
+            UPDATE tasks
+                SET badge_id = NULL
+            WHERE sort_order = ?1
+        "#, (idx_sort_order, ))?;
+
+        let task = self.tasks.get_mut(idx_sort_order as usize).expect("couldn't find task");
+        task.badge_id = None;
+
+        Ok(())
+    }
+
     pub fn _update_task_order(&mut self, task: &Task, sort_order: i64) -> Result<()> {
         self.connection.execute(r#"
             UPDATE tasks
