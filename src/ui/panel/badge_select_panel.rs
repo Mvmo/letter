@@ -13,7 +13,7 @@ pub struct BadgeSelectPanel {
     pub position: (usize, usize),
     cursor: usize,
     task_idx_sort_order: usize,
-    values: Vec<(i64, String)>
+    values: Vec<(Option<i64>, String)>
 }
 
 impl Panel for BadgeSelectPanel {
@@ -41,12 +41,18 @@ impl Panel for BadgeSelectPanel {
                 }
                 KeyCode::Enter => {
                     let (badge_idx, _) = self.values.get(self.cursor as usize).expect("something is really wrong :(");
-                    let badge = app_state.task_store.badges.get(badge_idx).expect("even more wrong");
-                    let badge_id = badge.id;
-                    let idx = self.task_idx_sort_order;
+                    if let Some(badge_idx) = badge_idx {
+                        let badge = app_state.task_store.badges.get(badge_idx).expect("even more wrong");
+                        let badge_id = badge.id;
+                        let idx = self.task_idx_sort_order;
 
-                    if let Err(_) = app_state.task_store.update_task_badge(idx as i64, badge_id) {
-                        error!("couldn't update task badge for {idx} using badge {badge_id}")
+                        if let Err(_) = app_state.task_store.update_task_badge(idx as i64, badge_id) {
+                            error!("couldn't update task badge for {idx} using badge {badge_id}")
+                        }
+                    } else {
+                        if let Err(_) = app_state.task_store.unset_task_badge(self.task_idx_sort_order as i64) {
+                            error!("couldn't update task badge")
+                        }
                     }
 
                     return Some(LetterCommand::Quit)
@@ -90,10 +96,12 @@ impl BadgeSelectPanel {
         let task = &letter.task_store.tasks.get(task_idx_sort_order).unwrap();
         let badges = &letter.task_store.badges;
 
-        let values = badges.iter()
+        let mut values: Vec<(Option<i64>, String)> = badges.iter()
             .filter(|(_, badge)| Some(badge.id) != task.badge_id)
-            .map(|(idx, badge)| (*idx, badge.name.clone()))
+            .map(|(idx, badge)| (Some(*idx), badge.name.clone()))
             .collect();
+
+        values.push((None, "None".to_string()));
 
         Self {
             cursor: 0,
