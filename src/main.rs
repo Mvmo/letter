@@ -11,6 +11,23 @@ use store::TaskStore;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+trait Window {
+    fn update();
+    fn draw();
+}
+
+struct TaskListWindow {}
+
+impl Window for TaskListWindow {
+    fn update() {
+
+    }
+
+    fn draw() {
+
+    }
+}
+
 fn create_database_connection() -> Result<Connection> {
     let db_path_str = "./.letter.db";
 
