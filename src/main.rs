@@ -14,8 +14,23 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 type DrawFrame<'a> = (Frame<'a, CrosstermBackend<Stdout>>, Rect);
 
-struct LetterState {
+enum LetterMode {
+    Normal,
+    Insert
+}
 
+struct LetterState {
+    store: TaskStore,
+    mode: LetterMode
+}
+
+impl LetterState {
+    fn new(store: TaskStore) -> Self {
+        Self {
+            store,
+            mode: LetterMode::Normal
+        }
+    }
 }
 
 trait Window {
