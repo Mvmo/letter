@@ -14,18 +14,22 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 type DrawFrame<'a> = (Frame<'a, CrosstermBackend<Stdout>>, Rect);
 
+struct LetterState {
+
+}
+
 trait Window {
-    fn update(&mut self);
-    fn draw(&self, draw_frame: DrawFrame);
+    fn update(&mut self, state: &mut LetterState);
+    fn draw(&self, state: &LetterState, draw_frame: DrawFrame);
 }
 
 struct TaskListWindow {}
 
 impl Window for TaskListWindow {
-    fn update(&mut self) {
+    fn update(&mut self, state: &mut LetterState) {
     }
 
-    fn draw(&self, draw_frame: DrawFrame) {
+    fn draw(&self, state: &LetterState, draw_frame: DrawFrame) {
     }
 }
 
