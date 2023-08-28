@@ -3,28 +3,29 @@ mod command;
 mod store;
 mod app;
 
-use std::{path::PathBuf, fs::File};
+use std::{path::PathBuf, fs::File, io::Stdout};
 
 use app::{Letter, LetterEditor, EditorMode, LetterCommand};
+use ratatui::{Frame, prelude::{CrosstermBackend, Rect}};
 use rusqlite::Connection;
 use store::TaskStore;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+type DrawFrame<'a> = (Frame<'a, CrosstermBackend<Stdout>>, Rect);
+
 trait Window {
-    fn update();
-    fn draw();
+    fn update(&mut self);
+    fn draw(&self, draw_frame: DrawFrame);
 }
 
 struct TaskListWindow {}
 
 impl Window for TaskListWindow {
-    fn update() {
-
+    fn update(&mut self) {
     }
 
-    fn draw() {
-
+    fn draw(&self, draw_frame: DrawFrame) {
     }
 }
 
