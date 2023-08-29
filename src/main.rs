@@ -6,13 +6,13 @@ mod app;
 use std::{path::PathBuf, fs::File, io::Stdout};
 
 use app::{Letter, LetterEditor, EditorMode, LetterCommand};
-use ratatui::{Frame, prelude::{CrosstermBackend, Rect}};
+use ratatui::{prelude::{CrosstermBackend, Rect}, Terminal};
 use rusqlite::Connection;
 use store::TaskStore;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-type DrawFrame<'a> = (Frame<'a, CrosstermBackend<Stdout>>, Rect);
+type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<Stdout>>;
 
 enum LetterMode {
     Normal,
@@ -34,17 +34,49 @@ impl LetterState {
 }
 
 trait Window {
-    fn update(&mut self, state: &mut LetterState);
-    fn draw(&self, state: &LetterState, draw_frame: DrawFrame);
+    fn update(&mut self, state: &mut LetterState) -> WindowCommand;
+    fn draw(&self, state: &LetterState, frame: &mut Frame, rect: Rect);
 }
 
 struct TaskListWindow {}
 
+enum _WindowCommand {
+    Quit
+}
+
+type WindowCommand = Option<_WindowCommand>;
+
 impl Window for TaskListWindow {
-    fn update(&mut self, state: &mut LetterState) {
+    fn update(&mut self, _state: &mut LetterState) -> WindowCommand {
+        None
     }
 
-    fn draw(&self, state: &LetterState, draw_frame: DrawFrame) {
+    fn draw(&self, _state: &LetterState, _frame: &mut Frame, _rect: Rect) {
+    }
+}
+
+struct WindowManager {
+    windows: Vec<Box<dyn Window>>,
+    terminal: Terminal<CrosstermBackend<Stdout>>,
+}
+
+impl WindowManager {
+    fn run(&mut self, store: TaskStore) -> Result<()> {
+        let mut state = LetterState::new(store);
+
+        loop {
+            self.windows.iter_mut()
+                .for_each(|window| {
+                    window.update(&mut state);
+                });
+
+            self.terminal.draw(|frame| {
+                self.windows.iter()
+                    .for_each(|window| {
+                        window.draw(&state, frame, Rect::new(32, 32, 80, 80));
+                    });
+            })?;
+        }
     }
 }
 
