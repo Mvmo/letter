@@ -6,7 +6,7 @@ mod app;
 use std::{path::PathBuf, fs::File, io::Stdout};
 
 use app::{Letter, LetterEditor, EditorMode, LetterCommand};
-use ratatui::{prelude::{CrosstermBackend, Rect}, Terminal};
+use ratatui::{prelude::{CrosstermBackend, Rect, Layout, Direction, Constraint}, Terminal};
 use rusqlite::Connection;
 use store::TaskStore;
 
@@ -71,6 +71,11 @@ impl WindowManager {
                 });
 
             self.terminal.draw(|frame| {
+                // take up equal space for every window horizontally
+                let layout = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([]);
+
                 self.windows.iter()
                     .for_each(|window| {
                         window.draw(&state, frame, Rect::new(32, 32, 80, 80));
