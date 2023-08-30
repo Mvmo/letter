@@ -3,6 +3,17 @@ use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}, collections::HashMap};
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::Paragraph, style::{Style, Color}};
 
+pub enum CursorDirection {
+    Up,
+    Down,
+    Left,
+    Right
+}
+
+pub enum TextAreaCommand {
+    MoveCursor(CursorDirection)
+}
+
 pub struct TextArea<S, R> {
     pub lines: Vec<String>,
     cursor: (usize, usize),
@@ -18,6 +29,19 @@ impl<S, R> TextArea<S, R> {
         }
 
         TextArea { lines, cursor: (0, 0), allow_line_breaks: true, callbacks: HashMap::new() }
+    }
+
+    pub fn handle_command(&mut self, cmd: TextAreaCommand) {
+        match cmd {
+            TextAreaCommand::MoveCursor(dir) => {
+                match dir {
+                    CursorDirection::Left => self.move_cursor_left(),
+                    CursorDirection::Up => self.move_cursor_up(),
+                    CursorDirection::Down => self.move_cursor_down(),
+                    CursorDirection::Right => self.move_cursor_right(),
+                }
+            }
+        }
     }
 
     pub fn disallow_line_breaks(&mut self) {
