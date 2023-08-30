@@ -147,7 +147,6 @@ impl WindowManager {
                     .constraints(constraints)
                     .split(panel_grid[0]);
 
-                const STATUS_BAR_HEIGHT: u16 = 2;
                 self.windows.iter()
                     .enumerate()
                     .for_each(|(idx, window)| {
