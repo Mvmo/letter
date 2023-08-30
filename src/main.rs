@@ -48,11 +48,13 @@ trait Window {
     fn draw(&self, state: &LetterState, frame: &mut Frame, rect: Rect);
 }
 
-struct TestWindow {}
+struct TestWindow {
+    title: String
+}
 
-impl Default for TestWindow {
-    fn default() -> Self {
-        return TestWindow {  }
+impl TestWindow {
+    fn new(title: String) -> Self {
+        return TestWindow { title }
     }
 }
 
@@ -63,13 +65,12 @@ impl Window for TestWindow {
 
     fn draw(&self, _state: &LetterState, frame: &mut Frame, rect: Rect) {
         let block = Block::default()
-            .title("LKJKLJLK")
+            .title(self.title.clone())
             .borders(Borders::ALL);
 
         frame.render_widget(block, rect)
     }
 }
-
 
 struct TaskListWindow {}
 
@@ -102,7 +103,8 @@ type WindowCommand = Option<_WindowCommand>;
 struct WindowManager {
     windows: Vec<Box<dyn Window>>,
     terminal: Terminal<CrosstermBackend<Stdout>>,
-    state: LetterState
+    state: LetterState,
+    cursor: (u16, u16)
 }
 
 impl WindowManager {
@@ -114,7 +116,7 @@ impl WindowManager {
 
         let state = LetterState::new(store);
 
-        WindowManager { windows, terminal, state }
+        WindowManager { windows, terminal, state, cursor: (0, 0) }
     }
 
     fn run(&mut self) -> Result<()> {
@@ -190,9 +192,10 @@ fn main() -> Result<()> {
     //task_store.fetch_data()?;
 
     let mut window_manager = WindowManager::new(task_store);
-    window_manager.push_window(Box::new(TaskListWindow::default()));
-    window_manager.push_window(Box::new(TestWindow::default()));
-    window_manager.push_window(Box::new(TestWindow::default()));
+    // window_manager.push_window(Box::new(TaskListWindow::default()));
+    window_manager.push_window(Box::new(TestWindow::new(String::from("Window 1"))));
+    window_manager.push_window(Box::new(TestWindow::new(String::from("Window 2"))));
+    window_manager.push_window(Box::new(TestWindow::new(String::from("Window 3"))));
     window_manager.run()?;
 
     Ok(())
