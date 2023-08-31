@@ -1,0 +1,22 @@
+char = _{ 'a'..'z' | 'A'..'Z' }
+num = _{ '0'..'9' }
+
+integer = { num+ }
+float = { (integer | !integer) ~ "." ~ integer }
+string = { "\"" ~ (char | num)+ ~ "\"" }
+identifier = { !num ~ (char | num)+ }
+
+whitespace = _{ " " }
+expr = { identifier | string | float | integer }
+
+let_stmt = { "let" ~ whitespace ~ identifier ~ whitespace ~ "=" ~ whitespace ~ expr }
+statement = _{ (let_stmt | function_stmt) ~ any_whitespace+? ~ ";" }
+
+four_indents = _{ "    " }
+eol = _{ "\n" | "␊" }
+any_whitespace = _{ "\t" | "\r" | " " | "\n" }
+
+scoped_statements = { "{" ~ any_whitespace? ~ (statement | any_whitespace)+? ~ any_whitespace? ~ "}" }
+function_stmt = { "fn " ~ identifier ~ "(" ~ ")" ~ " " ~ scoped_statements }
+
+program = { (statement+ | any_whitespace+)+ }
