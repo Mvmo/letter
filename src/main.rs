@@ -51,11 +51,6 @@ trait Window {
     fn draw(&self, state: &LetterState, frame: &mut Frame, rect: Rect);
 }
 
-struct TestWindow {
-    title: String,
-    text_area: TextArea<LetterState, LetterCommand>,
-}
-
 struct TaskListWindow {
     text_area: TextArea<LetterState, LetterCommand>,
 }
