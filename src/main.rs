@@ -2,6 +2,7 @@ mod ui;
 mod command;
 mod store;
 // mod app;
+mod parser;
 
 use std::{path::PathBuf, fs::File, io::{Stdout, stdout}, fmt::Display, process::exit, sync::mpsc::{self, Receiver}, thread, time::Duration};
 
@@ -154,6 +155,7 @@ impl WindowManager {
         keycommand_composer.register_keycommand(vec![KeyCode::Char('i')], LetterCommand::SwitchMode(LetterMode::Insert));
         keycommand_composer.register_keycommand(vec![KeyCode::Char(' '), KeyCode::Char('q')], LetterCommand::Quit);
         keycommand_composer.register_keycommand(vec![KeyCode::Char('d'), KeyCode::Char('d')], LetterCommand::Delete(DeleteCommand::DeleteLine));
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('x')], LetterCommand::Delete(DeleteCommand::DeleteChar));
 
         WindowManager { windows, terminal, state, keycommand_composer, letter_command_receiver: rx }
     }
