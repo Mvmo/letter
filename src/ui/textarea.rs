@@ -3,7 +3,7 @@ use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}, collections::HashMap};
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::Paragraph, style::{Style, Color}};
 
-use crate::{LetterCommand, LetterEvent, CursorDirection, _WindowCommand, WindowCommand, LetterMode};
+use crate::{LetterCommand, LetterEvent, CursorDirection, _WindowCommand, WindowCommand, LetterMode, DeleteCommand};
 
 pub struct TextArea<S, R> {
     pub lines: Vec<String>,
@@ -37,7 +37,13 @@ impl<S, R> TextArea<S, R> {
                         }
                     },
                     LetterCommand::SwitchMode(mode) => return Some(_WindowCommand::SwitchMode(mode)),
-                    LetterCommand::Quit => return Some(_WindowCommand::Quit)
+                    LetterCommand::Quit => return Some(_WindowCommand::Quit),
+                    LetterCommand::Delete(delete_cmd) => {
+                        match delete_cmd {
+                            DeleteCommand::DeleteLine => self.delete_current_line(),
+                            DeleteCommand::DeleteChar => self.delete_char_at_cursor(),
+                        }
+                    },
                 }
             },
             LetterEvent::RawKeyInputEvent(key_code) => {

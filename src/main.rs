@@ -7,6 +7,7 @@ use std::{path::PathBuf, fs::File, io::{Stdout, stdout}, fmt::Display, process::
 
 use command::KeyCommandComposer;
 use crossterm::{terminal::enable_raw_mode, event::{self, KeyCode}};
+use log::error;
 use ratatui::{prelude::{CrosstermBackend, Rect, Layout, Direction, Constraint}, Terminal, widgets::{Block, Borders, Paragraph, ListItem, List}, style::{Color, Style}};
 use rusqlite::Connection;
 use store::TaskStore;
@@ -82,11 +83,6 @@ impl Window for TaskListWindow {
             .max()
             .unwrap_or(0) as u16;
 
-           // letter.task_store.badges.iter()
-           // .map(|(_, badge)| badge.name.len())
-           // .max()
-           // .unwrap_or(0) as u16;
-           //
         let editor_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
@@ -106,10 +102,19 @@ impl Window for TaskListWindow {
 
         frame.render_widget(List::new(task_status_list), editor_layout[0]);
         self.text_area.draw(frame, editor_layout[2]);
-
     }
 
-    fn handle_event(&mut self, _state: &mut LetterState, event: LetterEvent) -> WindowCommand {
+    fn handle_event(&mut self, state: &mut LetterState, event: LetterEvent) -> WindowCommand {
+
+        let (_, y) = self.text_area.get_cursor();
+        if let LetterEvent::CommandEvent(LetterCommand::Delete(DeleteCommand::DeleteLine)) = event {
+            if state.store.tasks.len() > y {
+                if let Err(_) = state.store.delete_task(y as i64) {
+                    error!("couldn't delete task at {y}")
+                }
+            }
+        }
+
         self.text_area.handle_letter_event(event)
     }
 }
@@ -148,6 +153,7 @@ impl WindowManager {
         keycommand_composer.register_keycommand(vec![KeyCode::Char('b')], LetterCommand::MoveCursor(CursorDirection::OneWordBackward));
         keycommand_composer.register_keycommand(vec![KeyCode::Char('i')], LetterCommand::SwitchMode(LetterMode::Insert));
         keycommand_composer.register_keycommand(vec![KeyCode::Char(' '), KeyCode::Char('q')], LetterCommand::Quit);
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('d'), KeyCode::Char('d')], LetterCommand::Delete(DeleteCommand::DeleteLine));
 
         WindowManager { windows, terminal, state, keycommand_composer, letter_command_receiver: rx }
     }
@@ -281,12 +287,20 @@ enum CursorDirection {
 }
 
 #[derive(Clone, Copy)]
+enum DeleteCommand {
+    DeleteLine,
+    DeleteChar,
+}
+
+#[derive(Clone, Copy)]
 enum LetterCommand {
     MoveCursor(CursorDirection),
+    Delete(DeleteCommand),
     Quit,
     SwitchMode(LetterMode),
 }
 
+#[derive(Clone, Copy)]
 enum LetterEvent {
     CommandEvent(LetterCommand),
     RawKeyInputEvent(KeyCode)
