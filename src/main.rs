@@ -1,20 +1,24 @@
 mod ui;
 mod command;
 mod store;
-mod app;
+// mod app;
 
-use std::{path::PathBuf, fs::File, io::{Stdout, stdout}, fmt::Display};
+use std::{path::PathBuf, fs::File, io::{Stdout, stdout}, fmt::Display, process::exit, sync::mpsc::{self, Receiver}, thread, time::Duration};
 
-use app::{Letter, EditorMode, LetterCommand};
-use crossterm::terminal::enable_raw_mode;
+use command::KeyCommandComposer;
+// use app::{Letter, EditorMode};
+use crossterm::{terminal::enable_raw_mode, event::{self, KeyCode}};
 use ratatui::{prelude::{CrosstermBackend, Rect, Layout, Direction, Constraint}, Terminal, widgets::{Block, Borders, Paragraph}};
 use rusqlite::Connection;
 use store::TaskStore;
+use ui::textarea::TextArea;
+// use ui::textarea::TextArea;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<Stdout>>;
 
+#[derive(Clone, Copy)]
 enum LetterMode {
     Normal,
     Insert
@@ -44,18 +48,52 @@ impl LetterState {
 }
 
 trait Window {
+    fn handle_event(&mut self, state: &mut LetterState, event: LetterEvent) -> WindowCommand;
     fn update(&mut self, state: &mut LetterState) -> WindowCommand;
     fn draw(&self, state: &LetterState, frame: &mut Frame, rect: Rect);
 }
 
 struct TestWindow {
-    title: String
+    title: String,
+    text_area: TextArea<LetterState, LetterCommand>,
 }
 
 impl TestWindow {
     fn new(title: String) -> Self {
-        return TestWindow { title }
+        let text_area = TextArea::new(vec![String::from("hallo")]);
+        return TestWindow { title, text_area }
     }
+}
+
+fn text_area_handle_event(text_area: &mut TextArea<LetterState, LetterCommand>, event: LetterEvent) -> WindowCommand {
+    match event {
+        LetterEvent::CommandEvent(x) => {
+            match x {
+                LetterCommand::MoveCursor(dir) => {
+                    match dir {
+                        CursorDirection::Up => text_area.move_cursor_up(),
+                        CursorDirection::Down => text_area.move_cursor_down(),
+                        CursorDirection::Left => text_area.move_cursor_left(),
+                        CursorDirection::Right => text_area.move_cursor_right(),
+                        CursorDirection::OneWordForward => text_area.move_cursor_one_word_forward(),
+                        CursorDirection::OneWordBackward => text_area.move_cursor_one_word_backward(),
+                    }
+                },
+                LetterCommand::SwitchMode(mode) => return Some(_WindowCommand::SwitchMode(mode)),
+                LetterCommand::Quit => return Some(_WindowCommand::Quit)
+            }
+        },
+        LetterEvent::RawKeyInputEvent(key_code) => {
+            match key_code {
+                KeyCode::Char(c) => text_area.insert_char_at_cursor(c),
+                KeyCode::Esc => return Some(_WindowCommand::SwitchMode(LetterMode::Normal)),
+                _ => {}
+            }
+        },
+        _ => {}
+    }
+
+    None
 }
 
 impl Window for TestWindow {
@@ -68,7 +106,12 @@ impl Window for TestWindow {
             .title(self.title.clone())
             .borders(Borders::ALL);
 
-        frame.render_widget(block, rect)
+        frame.render_widget(block.clone(), rect);
+        self.text_area.draw(frame, block.inner(rect));
+    }
+
+    fn handle_event(&mut self, state: &mut LetterState, event: LetterEvent) -> WindowCommand {
+        text_area_handle_event(&mut self.text_area, event)
     }
 }
 
@@ -92,10 +135,15 @@ impl Window for TaskListWindow {
 
         frame.render_widget(block, rect)
     }
+
+    fn handle_event(&mut self, state: &mut LetterState, event: LetterEvent) -> WindowCommand {
+        None
+    }
 }
 
 enum _WindowCommand {
-    Quit
+    Quit,
+    SwitchMode(LetterMode),
 }
 
 type WindowCommand = Option<_WindowCommand>;
@@ -104,7 +152,9 @@ struct WindowManager {
     windows: Vec<Box<dyn Window>>,
     terminal: Terminal<CrosstermBackend<Stdout>>,
     state: LetterState,
-    cursor: (u16, u16)
+
+    keycommand_composer: KeyCommandComposer<LetterCommand>,
+    letter_command_receiver: Receiver<LetterCommand>
 }
 
 impl WindowManager {
@@ -116,18 +166,82 @@ impl WindowManager {
 
         let state = LetterState::new(store);
 
-        WindowManager { windows, terminal, state, cursor: (0, 0) }
+        let (mut keycommand_composer, rx) = KeyCommandComposer::new();
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('h')], LetterCommand::MoveCursor(CursorDirection::Left));
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('j')], LetterCommand::MoveCursor(CursorDirection::Down));
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('k')], LetterCommand::MoveCursor(CursorDirection::Up));
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('l')], LetterCommand::MoveCursor(CursorDirection::Right));
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('w')], LetterCommand::MoveCursor(CursorDirection::OneWordForward));
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('b')], LetterCommand::MoveCursor(CursorDirection::OneWordBackward));
+        keycommand_composer.register_keycommand(vec![KeyCode::Char('i')], LetterCommand::SwitchMode(LetterMode::Insert));
+        keycommand_composer.register_keycommand(vec![KeyCode::Char(' '), KeyCode::Char('q')], LetterCommand::Quit);
+
+        WindowManager { windows, terminal, state, keycommand_composer, letter_command_receiver: rx }
+    }
+
+    fn handle_window_command(&mut self, window_idx: usize, cmd: &WindowCommand) {
+        if let Some(cmd) = cmd {
+            match cmd {
+                _WindowCommand::Quit => {
+                    self.windows.remove(window_idx);
+                    if self.windows.len() == 0 {
+                        exit(0)
+                    }
+                },
+                _WindowCommand::SwitchMode(mode) => {
+                    self.keycommand_composer.clear_composition();
+                    self.state.mode = *mode;
+                }
+            }
+        }
     }
 
     fn run(&mut self) -> Result<()> {
         enable_raw_mode()?;
         self.terminal.clear()?;
 
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            loop {
+                if event::poll(Duration::from_millis(50)).unwrap() {
+                    if let event::Event::Key(key_event) = event::read().unwrap() {
+                        tx.send(key_event).unwrap();
+                    }
+                }
+            }
+        });
+
         loop {
-            self.windows.iter_mut()
-                .for_each(|window| {
-                    window.update(&mut self.state);
-                });
+            let cmds: Vec<(usize, WindowCommand)> = self.windows.iter_mut()
+                .enumerate()
+                .map(|(idx, window)| (idx, window.update(&mut self.state)))
+                .collect();
+
+            cmds.iter().for_each(|(window_idx, cmd)| {
+                self.handle_window_command(*window_idx, cmd)
+            });
+
+            if let Ok(key_event) = rx.try_recv() {
+                match self.state.mode {
+                    LetterMode::Normal => {
+                        self.keycommand_composer.push_key(key_event.code);
+                        if let Ok(cmd) = self.letter_command_receiver.try_recv() {
+                            let last_idx = self.windows.len() - 1;
+                            let wcmd = self.windows.get_mut(last_idx).unwrap()
+                                .handle_event(&mut self.state, LetterEvent::CommandEvent(cmd));
+
+                            self.handle_window_command(last_idx, &wcmd);
+                        }
+                    },
+                    LetterMode::Insert => {
+                        let last_idx = self.windows.len() - 1;
+                        let cmd = self.windows.get_mut(last_idx).unwrap()
+                            .handle_event(&mut self.state, LetterEvent::RawKeyInputEvent(key_event.code));
+
+                        self.handle_window_command(last_idx, &cmd);
+                    }
+                }
+            }
 
             self.terminal.draw(|frame| {
                 let percentage_per_window = 100 / self.windows.len() as u16;
@@ -181,6 +295,28 @@ fn create_database_connection() -> Result<Connection> {
 
     Connection::open(db_path_str)
         .map_err(|_| "cannot open sqlite database file".into())
+}
+
+#[derive(Clone, Copy)]
+enum CursorDirection {
+    Left,
+    Up,
+    Right,
+    Down,
+    OneWordForward,
+    OneWordBackward
+}
+
+#[derive(Clone, Copy)]
+enum LetterCommand {
+    MoveCursor(CursorDirection),
+    Quit,
+    SwitchMode(LetterMode),
+}
+
+enum LetterEvent {
+    CommandEvent(LetterCommand),
+    RawKeyInputEvent(KeyCode)
 }
 
 fn main() -> Result<()> {
