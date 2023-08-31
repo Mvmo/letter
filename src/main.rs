@@ -8,9 +8,9 @@ use std::{path::PathBuf, fs::File, io::{Stdout, stdout}, fmt::Display, process::
 use command::KeyCommandComposer;
 // use app::{Letter, EditorMode};
 use crossterm::{terminal::enable_raw_mode, event::{self, KeyCode}};
-use ratatui::{prelude::{CrosstermBackend, Rect, Layout, Direction, Constraint}, Terminal, widgets::{Block, Borders, Paragraph}};
+use ratatui::{prelude::{CrosstermBackend, Rect, Layout, Direction, Constraint}, Terminal, widgets::{Block, Borders, Paragraph, ListItem, List}, style::{Color, Style}};
 use rusqlite::Connection;
-use store::TaskStore;
+use store::{TaskStore, Task};
 use ui::textarea::TextArea;
 // use ui::textarea::TextArea;
 
@@ -115,11 +115,14 @@ impl Window for TestWindow {
     }
 }
 
-struct TaskListWindow {}
+struct TaskListWindow {
+    text_area: TextArea<LetterState, LetterCommand>,
+}
 
-impl Default for TaskListWindow {
-    fn default() -> Self {
-        return TaskListWindow {  }
+impl TaskListWindow {
+    fn new(store: &TaskStore) -> Self {
+        let text_area = TextArea::new(store.tasks.iter().map(|task| task.text.clone()).collect());
+        return TaskListWindow { text_area }
     }
 }
 
@@ -128,16 +131,50 @@ impl Window for TaskListWindow {
         None
     }
 
-    fn draw(&self, _state: &LetterState, frame: &mut Frame, rect: Rect) {
+    fn draw(&self, state: &LetterState, frame: &mut Frame, rect: Rect) {
         let block = Block::default()
-            .title("Hallo")
+            .title("Tasks")
             .borders(Borders::ALL);
 
-        frame.render_widget(block, rect)
+        let block_rect = block.inner(rect);
+        frame.render_widget(block, rect);
+        let rect = block_rect;
+
+        let widest_badge_used = state.store.tasks.iter()
+            .filter_map(|task| state.store.get_badge(&task))
+            .map(|badge| badge.name.len())
+            .max()
+            .unwrap_or(0) as u16;
+
+           // letter.task_store.badges.iter()
+           // .map(|(_, badge)| badge.name.len())
+           // .max()
+           // .unwrap_or(0) as u16;
+           //
+        let editor_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(widest_badge_used),
+                Constraint::Length(1),
+                Constraint::Length(rect.width - widest_badge_used)
+            ]).split(rect);
+
+        let task_status_list: Vec<ListItem> = state.store.tasks.iter()
+            .map(|task| {
+                let badge = state.store.get_badge(task);
+                let color = badge.map(|badge| badge.color).unwrap_or_else(|| Color::Black);
+                let name = badge.map(|badge| badge.name.clone()).unwrap_or_else(|| String::new());
+                ListItem::new(format!("{}", name))
+                    .style(Style::default().bg(color))
+            }).collect();
+
+        frame.render_widget(List::new(task_status_list), editor_layout[0]);
+        self.text_area.draw(frame, editor_layout[2]);
+
     }
 
     fn handle_event(&mut self, state: &mut LetterState, event: LetterEvent) -> WindowCommand {
-        None
+        text_area_handle_event(&mut self.text_area, event)
     }
 }
 
@@ -325,13 +362,9 @@ fn main() -> Result<()> {
     let mut task_store = TaskStore::new(connection);
     task_store.fetch_data()?;
 
-    //task_store.fetch_data()?;
-
     let mut window_manager = WindowManager::new(task_store);
-    // window_manager.push_window(Box::new(TaskListWindow::default()));
-    window_manager.push_window(Box::new(TestWindow::new(String::from("Window 1"))));
-    window_manager.push_window(Box::new(TestWindow::new(String::from("Window 2"))));
-    window_manager.push_window(Box::new(TestWindow::new(String::from("Window 3"))));
+    let task_list_window = TaskListWindow::new(&window_manager.state.store);
+    window_manager.push_window(Box::new(task_list_window));
     window_manager.run()?;
 
     Ok(())
