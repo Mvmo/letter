@@ -3,16 +3,7 @@ use std::{io::Stdout, sync::{mpsc::Receiver, Mutex, Arc}, collections::HashMap};
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{Frame, prelude::{CrosstermBackend, Rect}, widgets::Paragraph, style::{Style, Color}};
 
-pub enum CursorDirection {
-    Up,
-    Down,
-    Left,
-    Right
-}
-
-pub enum TextAreaCommand {
-    MoveCursor(CursorDirection)
-}
+use crate::{LetterCommand, LetterEvent, CursorDirection, _WindowCommand, WindowCommand, LetterMode};
 
 pub struct TextArea<S, R> {
     pub lines: Vec<String>,
@@ -31,17 +22,35 @@ impl<S, R> TextArea<S, R> {
         TextArea { lines, cursor: (0, 0), allow_line_breaks: true, callbacks: HashMap::new() }
     }
 
-    pub fn handle_command(&mut self, cmd: TextAreaCommand) {
-        match cmd {
-            TextAreaCommand::MoveCursor(dir) => {
-                match dir {
-                    CursorDirection::Left => self.move_cursor_left(),
-                    CursorDirection::Up => self.move_cursor_up(),
-                    CursorDirection::Down => self.move_cursor_down(),
-                    CursorDirection::Right => self.move_cursor_right(),
+    pub fn handle_letter_event(&mut self, event: LetterEvent) -> WindowCommand {
+        match event {
+            LetterEvent::CommandEvent(x) => {
+                match x {
+                    LetterCommand::MoveCursor(dir) => {
+                        match dir {
+                            CursorDirection::Up => self.move_cursor_up(),
+                            CursorDirection::Down => self.move_cursor_down(),
+                            CursorDirection::Left => self.move_cursor_left(),
+                            CursorDirection::Right => self.move_cursor_right(),
+                            CursorDirection::OneWordForward => self.move_cursor_one_word_forward(),
+                            CursorDirection::OneWordBackward => self.move_cursor_one_word_backward(),
+                        }
+                    },
+                    LetterCommand::SwitchMode(mode) => return Some(_WindowCommand::SwitchMode(mode)),
+                    LetterCommand::Quit => return Some(_WindowCommand::Quit)
                 }
-            }
+            },
+            LetterEvent::RawKeyInputEvent(key_code) => {
+                match key_code {
+                    KeyCode::Char(c) => self.insert_char_at_cursor(c),
+                    KeyCode::Esc => return Some(_WindowCommand::SwitchMode(LetterMode::Normal)),
+                    _ => {}
+                }
+            },
+            _ => {}
         }
+
+        None
     }
 
     pub fn disallow_line_breaks(&mut self) {
