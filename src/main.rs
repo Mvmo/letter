@@ -6,13 +6,11 @@ mod store;
 use std::{path::PathBuf, fs::File, io::{Stdout, stdout}, fmt::Display, process::exit, sync::mpsc::{self, Receiver}, thread, time::Duration};
 
 use command::KeyCommandComposer;
-// use app::{Letter, EditorMode};
 use crossterm::{terminal::enable_raw_mode, event::{self, KeyCode}};
 use ratatui::{prelude::{CrosstermBackend, Rect, Layout, Direction, Constraint}, Terminal, widgets::{Block, Borders, Paragraph, ListItem, List}, style::{Color, Style}};
 use rusqlite::Connection;
-use store::{TaskStore, Task};
+use store::TaskStore;
 use ui::textarea::TextArea;
-// use ui::textarea::TextArea;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -56,63 +54,6 @@ trait Window {
 struct TestWindow {
     title: String,
     text_area: TextArea<LetterState, LetterCommand>,
-}
-
-impl TestWindow {
-    fn new(title: String) -> Self {
-        let text_area = TextArea::new(vec![String::from("hallo")]);
-        return TestWindow { title, text_area }
-    }
-}
-
-fn text_area_handle_event(text_area: &mut TextArea<LetterState, LetterCommand>, event: LetterEvent) -> WindowCommand {
-    match event {
-        LetterEvent::CommandEvent(x) => {
-            match x {
-                LetterCommand::MoveCursor(dir) => {
-                    match dir {
-                        CursorDirection::Up => text_area.move_cursor_up(),
-                        CursorDirection::Down => text_area.move_cursor_down(),
-                        CursorDirection::Left => text_area.move_cursor_left(),
-                        CursorDirection::Right => text_area.move_cursor_right(),
-                        CursorDirection::OneWordForward => text_area.move_cursor_one_word_forward(),
-                        CursorDirection::OneWordBackward => text_area.move_cursor_one_word_backward(),
-                    }
-                },
-                LetterCommand::SwitchMode(mode) => return Some(_WindowCommand::SwitchMode(mode)),
-                LetterCommand::Quit => return Some(_WindowCommand::Quit)
-            }
-        },
-        LetterEvent::RawKeyInputEvent(key_code) => {
-            match key_code {
-                KeyCode::Char(c) => text_area.insert_char_at_cursor(c),
-                KeyCode::Esc => return Some(_WindowCommand::SwitchMode(LetterMode::Normal)),
-                _ => {}
-            }
-        },
-        _ => {}
-    }
-
-    None
-}
-
-impl Window for TestWindow {
-    fn update(&mut self, _state: &mut LetterState) -> WindowCommand {
-        None
-    }
-
-    fn draw(&self, _state: &LetterState, frame: &mut Frame, rect: Rect) {
-        let block = Block::default()
-            .title(self.title.clone())
-            .borders(Borders::ALL);
-
-        frame.render_widget(block.clone(), rect);
-        self.text_area.draw(frame, block.inner(rect));
-    }
-
-    fn handle_event(&mut self, state: &mut LetterState, event: LetterEvent) -> WindowCommand {
-        text_area_handle_event(&mut self.text_area, event)
-    }
 }
 
 struct TaskListWindow {
@@ -173,8 +114,8 @@ impl Window for TaskListWindow {
 
     }
 
-    fn handle_event(&mut self, state: &mut LetterState, event: LetterEvent) -> WindowCommand {
-        text_area_handle_event(&mut self.text_area, event)
+    fn handle_event(&mut self, _state: &mut LetterState, event: LetterEvent) -> WindowCommand {
+        self.text_area.handle_letter_event(event)
     }
 }
 
