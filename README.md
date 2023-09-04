@@ -2,23 +2,21 @@
 
 TODO: Implement scripting language
 ```
-set_background_color(color::red);
-set_foreground_color(color::blue);
-
-let arr: str[] = [];
-let arr: str[] = []; // shadow < -- comment
-
-arr = arr + ["hallo welt"];
-
-fn init() {
-    ncmd("<space>w", fn () {
-        const window_id: int = get_active_window();
-        move_window_to_left(window_id);
-    });
-
-    ncmd("<space>q", fn () {
-        quit();
-    });
+struct GlobalContext {
+    cursor: [int][2]
 }
 
+fn move_cursor_left(ctx: GlobalContext) <
+    let x = ctx.cursor[0]
+    let y = ctx.cursor[1]
+
+    ctx.cursor = [x + 1, y]
+>
+
+fn init() <
+    loop {
+        move_cursor_left();
+        move_cursor_right();
+    }
+>
 ```
