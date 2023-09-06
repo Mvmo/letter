@@ -1,22 +1,85 @@
 char = _{ 'a'..'z' | 'A'..'Z' }
-num = _{ '0'..'9' }
+digit = _{ ASCII_DIGIT }
 
-integer = { num+ }
-float = { (integer | !integer) ~ "." ~ integer }
-string = { "\"" ~ (char | num)+ ~ "\"" }
-identifier = { !num ~ (char | num)+ }
+type = {
+	"bool"
+    | "float"
+    | "int"
+    | "string"
+    | "char"
+    | "void"
+}
 
-whitespace = _{ " " }
-expr = { identifier | string | float | integer }
+type_annotation = {
+	":"
+    ~ space*
+    ~ type
+}
 
-let_stmt = { "let" ~ whitespace ~ identifier ~ whitespace ~ "=" ~ whitespace ~ expr }
-statement = _{ (let_stmt | function_stmt) ~ any_whitespace+? ~ ";" }
+float = { digit* ~ "." ~ digit+ }
+integer = { digit+ }
+character = { "'" ~ char ~ "'" }
+bool = { "true" | "false" }
 
-four_indents = _{ "    " }
-eol = _{ "\n" | "␊" }
-any_whitespace = _{ "\t" | "\r" | " " | "\n" }
+identifier = { char ~ (digit | char)* }
 
-scoped_statements = { "{" ~ any_whitespace? ~ (statement | any_whitespace)+? ~ any_whitespace? ~ "}" }
-function_stmt = { "fn " ~ identifier ~ "(" ~ ")" ~ " " ~ scoped_statements }
+expression = {
+	float
+    | integer
+    | character
+    | bool
+    | identifier
+}
 
-program = { (statement+ | any_whitespace+)+ }
+space = _{ " " }
+let = {
+	"let"
+    ~ space+
+    ~ identifier
+    ~ space*
+    ~ type_annotation
+    ~ space*
+    ~ "="
+    ~ space+
+    ~ expression
+}
+
+function_param = {
+	identifier
+	~ space*
+	~ type_annotation
+	~ space*
+}
+
+function_param_list = _{
+	"("
+    ~ space*
+    ~ (function_param
+    ~ ("," ~ function_param)*)?
+    ~ space*
+    ~ ")"
+}
+
+function = {
+	"fn"
+    ~ space+
+    ~ identifier
+    ~ space*
+    ~ function_param_list
+    ~ space*
+    ~ "->"
+    ~ space*
+    ~ type
+}
+
+statement = {
+	( let
+    | function
+   	)
+    ~ ";"
+}
+
+whitespace = _{ (space | "\t" | "\r" | "\n") }
+program = {
+	(statement | whitespace)*
+}
