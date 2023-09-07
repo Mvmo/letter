@@ -10,7 +10,7 @@ type = {
     | "void"
 }
 
-type_annotation = {
+type_annotation = _{
 	":"
     ~ space*
     ~ type
@@ -32,6 +32,7 @@ expression = {
 }
 
 space = _{ " " }
+
 let = {
 	"let"
     ~ space+
@@ -42,6 +43,15 @@ let = {
     ~ "="
     ~ space+
     ~ expression
+}
+
+function_body = {
+	"{"
+    ~
+    ( statement
+    | whitespace
+    )*
+    ~ "}"
 }
 
 function_param = {
@@ -70,16 +80,23 @@ function = {
     ~ "->"
     ~ space*
     ~ type
+    ~ space*
+    ~ function_body
+}
+
+semicolon_ended_statement = {
+	( let
+    )
+    ~ ";"
 }
 
 statement = {
-	( let
+	semicolon_ended_statement
     | function
-   	)
-    ~ ";"
 }
 
 whitespace = _{ (space | "\t" | "\r" | "\n") }
 program = {
 	(statement | whitespace)*
 }
+
