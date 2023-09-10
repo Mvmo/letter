@@ -61,11 +61,11 @@ function_param = {
 	~ space*
 }
 
-function_param_list = _{
+function_param_list = {
 	"("
     ~ space*
     ~ (function_param
-    ~ ("," ~ function_param)*)?
+    ~ ("," ~ space* ~ function_param)*)?
     ~ space*
     ~ ")"
 }
@@ -84,7 +84,7 @@ function = {
     ~ function_body
 }
 
-semicolon_ended_statement = {
+semicolon_ended_statement = _{
 	( let
     )
     ~ ";"
@@ -96,7 +96,7 @@ statement = {
 }
 
 whitespace = _{ (space | "\t" | "\r" | "\n") }
-program = {
+program = _{
 	(statement | whitespace)*
 }
 
