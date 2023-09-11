@@ -1,0 +1,13 @@
+let x: int = 5;
+let y: float = 5.5;
+let z: string = "hallo, welt";
+let v: bool = true;
+let w: char = 'w';
+
+fn print_hello_world() -> void {
+    print("hallo, welt");
+};
+
+fn times_two(x: int) -> int {
+    return x * 2;
+};
